@@ -4,9 +4,11 @@ use std::cell::RefCell;
 use std::future::Future;
 use std::rc::Rc;
 
+use crate::task::JoinHandle;
+
 mod driver;
 mod executor;
-mod waker;
+pub(crate) mod waker;
 
 thread_local! {
     static RUNTIME: RefCell<Option<Runtime>>= RefCell::new(None);
@@ -39,6 +41,15 @@ impl Runtime {
             executor: Executor::new(),
         }))
     }
+
+    pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
+    where
+        F: Future + 'static,
+    {
+        let task = self.0.executor.spawn(future);
+        JoinHandle::new(task)
+    }
+
     /// Runs a future to completion in the current thread.
     pub fn block_on<F>(&self, future: F) -> F::Output
     where

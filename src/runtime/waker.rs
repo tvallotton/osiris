@@ -1,5 +1,8 @@
 use crate::runtime::current_unwrap;
 use std::task::{RawWaker, RawWakerVTable, Waker};
+
+
+
 pub(crate) fn waker(task_id: usize) -> Waker {
     unsafe { Waker::from_raw(raw_waker(task_id as _)) }
 }
@@ -10,7 +13,7 @@ const fn raw_waker(data: *const ()) -> RawWaker {
 
 const VTABLE: RawWakerVTable = {
     let wake = |data| {
-        current_unwrap("Waker::wake_by_ref")
+        current_unwrap("wake")
             .0
             .executor
             .woken
