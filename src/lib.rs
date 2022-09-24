@@ -10,7 +10,7 @@ mod task;
 
 
 #[test]
-fn foo() {
+fn smoke_test() {
 
 
     let rt = runtime::Runtime::new(); 

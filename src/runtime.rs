@@ -55,6 +55,19 @@ impl Runtime {
     where
         F: Future,
     {
+        let _h = self.enter();
         self.0.executor.block_on(future)
+    }
+
+    pub fn enter(&self) -> impl Drop + '_ {
+        struct Enter<'a>(Option<Runtime>, &'a Runtime);
+        impl<'a> Drop for Enter<'a> {
+            fn drop(&mut self) {
+                RUNTIME.with(|cell| cell.replace(self.0.take()));
+            }
+        }
+        let new_rt = Some(self.clone()); 
+        let rt = RUNTIME.with(|cell| cell.replace(new_rt));
+        Enter(rt, &self)
     }
 }
