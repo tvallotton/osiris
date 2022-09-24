@@ -15,13 +15,13 @@ use std::{
 };
 pub(crate) struct Executor {
     tasks: RefCell<HashMap<usize, Rc<dyn Task>>>,
-    woken: RefCell<VecDeque<usize>>,
+    pub(crate) woken: RefCell<VecDeque<usize>>,
     // determines whether the block_on task has been woken.
     block_on: Cell<bool>,
     task_id: Cell<usize>,
 }
 
-trait Task {}
+pub(crate) trait Task {}
 
 impl Executor {
     pub fn new() -> Executor {

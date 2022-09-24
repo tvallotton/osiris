@@ -1,12 +1,26 @@
 use driver::Driver;
 use executor::Executor;
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::future::Future;
 use std::rc::Rc;
 
 mod driver;
 mod executor;
-mod waker; 
+mod waker;
+
+thread_local! {
+    static RUNTIME: RefCell<Option<Runtime>>= RefCell::new(None);
+}
+
+pub fn current() -> Option<Runtime> {
+    RUNTIME.with(|cell| cell.borrow().clone())
+}
+pub(crate) fn current_unwrap(fun: &str) -> Runtime {
+    if let Some(rt) = current() {
+        return rt;
+    }
+    panic!("called `{fun}` from the outside of a runtime context.")
+}
 
 /// The osiris local runtime.
 /// For the moment it cannot be customized.
@@ -14,14 +28,14 @@ mod waker;
 pub struct Runtime(Rc<Inner>);
 
 pub struct Inner {
-    driver: Driver,
+    _driver: Driver,
     executor: Executor,
 }
 
 impl Runtime {
     pub fn new() -> Runtime {
         Runtime(Rc::new(Inner {
-            driver: Driver {},
+            _driver: Driver {},
             executor: Executor::new(),
         }))
     }
