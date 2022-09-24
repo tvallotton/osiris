@@ -24,6 +24,7 @@ pub(crate) fn current_unwrap(fun: &str) -> Runtime {
     panic!("called `{fun}` from the outside of a runtime context.")
 }
 
+
 /// The osiris local runtime.
 /// For the moment it cannot be customized.
 #[derive(Clone)]
@@ -66,7 +67,7 @@ impl Runtime {
                 RUNTIME.with(|cell| cell.replace(self.0.take()));
             }
         }
-        let new_rt = Some(self.clone()); 
+        let new_rt = Some(self.clone());
         let rt = RUNTIME.with(|cell| cell.replace(new_rt));
         Enter(rt, &self)
     }

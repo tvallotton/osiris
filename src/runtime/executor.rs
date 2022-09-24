@@ -40,7 +40,6 @@ impl Executor {
         let mut cx = Context::from_waker(&waker);
         loop {
             let future = unsafe { Pin::new_unchecked(&mut future) };
-            println!("foo"); 
             if self.block_on.get() {
                 match future.poll(&mut cx) {
                     Poll::Ready(ready) => return ready,
