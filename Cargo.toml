@@ -3,9 +3,21 @@ name = "osiris"
 version = "0.1.0"
 edition = "2021"
 
+[profile.bench]
+debug = true
+
+[profile.release]
+debug = true
+
+
 [dependencies]
 num_cpus = "1.13.1"
+pin-cell = "0.2.0"
 pin-project-lite = "0.2.9"
 tokio = { version = "1.21.1", features = ["rt"] }
+
+[dev-dependencies]
+color-eyre = "0.6.2"
+dotenv = "0.15.0"
 
 

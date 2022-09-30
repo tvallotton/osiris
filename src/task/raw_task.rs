@@ -1,9 +1,10 @@
 use super::Task;
 use crate::runtime::waker::waker;
-use pin_project_lite::pin_project;
+
 use std::{
     any::Any,
-    future::{Future, Pending, Ready},
+    cell::UnsafeCell,
+    future::Future,
     hint::unreachable_unchecked,
     mem::replace,
     pin::Pin,
@@ -11,6 +12,13 @@ use std::{
 };
 
 pub(crate) struct RawTask<F: Future> {
+    // Tasks are shared mutable state
+    // so we need to enclose its contents in a cell.
+    // althought this is an UnsafeCell its contents are pinned.
+    cell: UnsafeCell<Inner<F>>,
+}
+
+pub(crate) struct Inner<F: Future> {
     pub join_waker: Option<Waker>,
     pub task_id: usize,
     pub payload: Payload<F>,
@@ -24,7 +32,19 @@ pub(crate) enum Payload<F: Future> {
 }
 
 impl<F: Future> RawTask<F> {
-    fn wake_join(&self) {
+    pub fn new(task_id: usize, fut: F) -> Self {
+        RawTask {
+            cell: UnsafeCell::new(Inner {
+                join_waker: None,
+                task_id,
+                payload: Payload::Pending { fut },
+            }),
+        }
+    }
+}
+
+impl<F: Future> Inner<F> {
+    fn wake_join(&mut self) {
         if let Some(waker) = &self.join_waker {
             waker.wake_by_ref();
         }
@@ -38,38 +58,43 @@ impl<F: Future> Task for RawTask<F>
 where
     F::Output: 'static,
 {
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<()> {
-        // SAFETY: F is never moved.
-        let task = unsafe { Pin::get_unchecked_mut(self) };
-        // this is ok because fut is a &mut F.
+    fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()> {
+        // SAFETY: this is ok because the reference does not outlive the function.
+        //         thus, there cannot be two references to this task.
+        let task = unsafe { &mut *self.cell.get() };
+
         if let Payload::Pending { fut } = &mut task.payload {
-            // We can pin it back because we never move it.
+            // SAFETY: this is ok because fut: &mut F is never moved,
+            //         so we can project the pin.
             let fut = unsafe { Pin::new_unchecked(fut) };
+
             if let Poll::Ready(output) = fut.poll(cx) {
                 // this is ok because the future gets dropped.
                 task.payload = Payload::Ready { output };
+                // let's wake the joining task.
                 task.wake_join();
                 Poll::Ready(())
             } else {
                 Poll::Pending
             }
         } else {
+            // we return ready so the task can be removed from the queue.
             Poll::Ready(())
         }
     }
     #[track_caller]
-    fn poll_join(self: Pin<&mut Self>, cx: &mut Context, out: &mut dyn Any) {
-        // SAFETY: F is never moved.
-        let task = unsafe { Pin::get_unchecked_mut(self) };
+    fn poll_join(self: Pin<&Self>, cx: &mut Context, out: &mut dyn Any) {
+        // SAFETY: this is ok because the reference does not outlive the function.
+        //         thus, there cannot be two references to this task.
+        let task = unsafe { &mut *self.cell.get() };
         task.insert_waker(cx);
-
         if !matches!(task.payload, Payload::Pending { .. }) {
             let payload = replace(&mut task.payload, Payload::Taken);
 
             match payload {
                 Payload::Ready { output } => {
-                    let out: &mut Option<F::Output> = out.downcast_mut().unwrap();
-                    let _ = out.insert(output);
+                    let out: &mut Poll<F::Output> = out.downcast_mut().unwrap();
+                    *out = Poll::Ready(output);
                 }
                 Payload::Taken => {
                     panic!("polled a JoinHandle future after returning Poll::Ready(..).");
@@ -77,19 +102,19 @@ where
                 Payload::Aborted => {
                     panic!("attempted to join a task that has been aborted.")
                 }
+                // SAFETY: we already checked for this case
                 Payload::Pending { .. } => unsafe { unreachable_unchecked() },
             }
         }
     }
 
-    fn wake(self: Pin<&mut Self>) {
-        waker(self.task_id).wake();
-    }
-    
-    fn abort(self: Pin<&mut Self>) {
-        // SAFETY: F is never moved.
-        let task = unsafe { Pin::get_unchecked_mut(self) };
-        task.payload = Payload::Aborted;
-        // we wake it to make sure it gets destroyed in the next tick
+    fn abort(self: Pin<&Self>) {
+        {
+            // SAFETY: this is ok because the reference does not outlive the current scope.
+            //         thus, there cannot be two references to this task.
+            let task = unsafe { &mut *self.cell.get() };
+            task.payload = Payload::Aborted;
+            waker(task.task_id).wake();
+        }
     }
 }

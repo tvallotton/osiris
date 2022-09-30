@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-/// Yields execution back to the Tokio runtime.
+/// Yields execution back to the runtime.
 ///
 /// A task yields by awaiting on `yield_now()`, and may resume when that future
 /// completes (with no output.) The current task will be re-added as a pending
@@ -42,7 +42,6 @@ pub async fn yield_now() {
 
     impl Future for YieldNow {
         type Output = ();
-
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
             if self.yielded {
                 return Poll::Ready(());

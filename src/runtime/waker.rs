@@ -21,7 +21,8 @@ const VTABLE: RawWakerVTable = {
             .executor
             .woken
             .borrow_mut()
-            .push_back(data as _)
+            .push_back(data as _);
     };
+
     RawWakerVTable::new(raw_waker, wake, wake, |_| {})
 };
