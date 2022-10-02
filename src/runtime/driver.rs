@@ -1,1 +1,6 @@
-pub(crate) struct Driver {}
+
+
+pub(crate) struct Reactor {
+    clock: Clock,
+    driver: Driver, 
+}

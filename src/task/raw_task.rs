@@ -109,12 +109,10 @@ where
     }
 
     fn abort(self: Pin<&Self>) {
-        {
-            // SAFETY: this is ok because the reference does not outlive the current scope.
-            //         thus, there cannot be two references to this task.
-            let task = unsafe { &mut *self.cell.get() };
-            task.payload = Payload::Aborted;
-            waker(task.task_id).wake();
-        }
+        // SAFETY: this is ok because the reference does not outlive the current scope.
+        //         thus, there cannot be two references to this task.
+        let task = unsafe { &mut *self.cell.get() };
+        task.payload = Payload::Aborted;
+        waker(task.task_id).wake();
     }
 }
