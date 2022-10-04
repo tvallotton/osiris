@@ -1,4 +1,5 @@
-#![warn(clippy::undocumented_unsafe_blocks)]
+#![feature(generic_associated_types)]
+
 
 pub use runtime::block_on;
 pub use task::spawn;
@@ -7,9 +8,12 @@ pub use task::spawn;
 mod macros;
 pub mod runtime;
 pub mod task;
+pub mod io; 
 
 #[test]
 fn smoke_test() {
+foo(); 
+
     block_on(async {
         let task = task::spawn(async {
             println!("hello from task");
@@ -18,4 +22,9 @@ fn smoke_test() {
         task.await;
         println!("hello from entry point");
     })
+}
+
+fn foo() {
+    task::spawn(async {}); 
+
 }

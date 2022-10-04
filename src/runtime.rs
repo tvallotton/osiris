@@ -2,6 +2,7 @@ use driver::Driver;
 use executor::Executor;
 use std::cell::RefCell;
 use std::future::Future;
+use std::panic::Location;
 use std::rc::Rc;
 
 use crate::task::JoinHandle;
@@ -18,17 +19,23 @@ thread_local! {
 /// Returns a handle to the currently running [`Runtime`].
 /// # Panics
 /// This will panic if called outside the context of a osiris runtime.
-/// It is ok to call from a spawned task or from a [blocked on](block_on) future
-pub fn current() -> Option<Runtime> {
-    RUNTIME.with(|cell| cell.borrow().clone())
+/// It is ok to call this function from a spawned task or from a [blocked on](block_on) future. 
+#[track_caller]
+pub fn current() -> Runtime {
+    if let Some(runtime) = Runtime::current() {
+        return runtime 
+    }
+    panic!("called `current` from the outside of a runtime context.")
 }
 
 pub fn block_on<F: Future>(f: F) -> F::Output {
     Runtime::new().block_on(f)
 }
 
+
+#[track_caller]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
-    if let Some(rt) = current() {
+    if let Some(rt) = Runtime::current() {
         return rt;
     }
     panic!("called `{fun}` from the outside of a runtime context.")
@@ -50,6 +57,10 @@ impl Runtime {
             _driver: Driver {},
             executor: Executor::new(),
         }))
+    }
+
+    pub fn current() -> Option<Runtime> {
+        RUNTIME.with(|cell| cell.borrow().clone())
     }
 
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
@@ -88,10 +99,10 @@ impl Runtime {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio::runtime::Runtime;
+    /// use osiris::runtime::Runtime;
     ///
     /// // Create the runtime
-    /// let rt  = Runtime::new().unwrap();
+    /// let rt  = Runtime::new();
     ///
     /// // Execute the future, blocking the current thread until completion
     /// rt.block_on(async {
@@ -106,7 +117,7 @@ impl Runtime {
         F: Future,
     {
         assert!(
-            current().is_none(),
+            Runtime::current().is_none(),
             "called `block_on` from the inside of another osiris runtime."
         );
         let _h = self.enter();

@@ -1,0 +1,12 @@
+version: "3.7"
+services:
+  linux: 
+    build: .
+    volumes: 
+      - ./:/home/osiris
+    command: "cargo watch -c"
+    tty: true
+
+
+
+    

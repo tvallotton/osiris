@@ -14,6 +14,7 @@ mod join_handle;
 mod raw_task;
 mod yield_now;
 
+#[track_caller]
 pub fn spawn<F>(future: F) -> JoinHandle<<F as Future>::Output>
 where
     F: Future + 'static,

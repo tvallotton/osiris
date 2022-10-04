@@ -5,8 +5,13 @@ edition = "2021"
 
 [features]
 rt = []
+net = ["socket2"]
 
+
+[target.'cfg(target_os = "linux")'.dependencies]
+io-uring = {version = "0.5.6", features = ["unstable"]}
 
 [dependencies]
+socket2 = {version = "0.4", features = ["all"], optional = true}
 
 [dev-dependencies]
