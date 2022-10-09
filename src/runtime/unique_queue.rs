@@ -39,6 +39,10 @@ impl<T: Eq + Copy + Hash + Default + Ord> UniqueQueue<T> {
             map: HashMap::with_capacity_and_hasher(capacity, NoopHasher(0)),
         }
     }
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
     pub fn push_back(&mut self, item: T) {
         self.map.insert(self.last, item);
         self.last = item;

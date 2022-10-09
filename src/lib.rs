@@ -1,30 +1,39 @@
-#![feature(generic_associated_types)]
-
+// #![forbid(unsafe_op_in_unsafe_fn)]
 
 pub use runtime::block_on;
 pub use task::spawn;
 
 #[macro_use]
 mod macros;
+pub mod io;
 pub mod runtime;
 pub mod task;
-pub mod io; 
+
 
 #[test]
-fn smoke_test() {
-foo(); 
-
-    block_on(async {
-        let task = task::spawn(async {
-            println!("hello from task");
-        });
-
-        task.await;
-        println!("hello from entry point");
-    })
-}
-
 fn foo() {
-    task::spawn(async {}); 
+    use std::cell::Cell;
+    use std::rc::Rc;
+    let start = std::time::Instant::now(); 
+    let cell = Rc::new(Cell::new(0u64));
+    block_on(async {
 
+        for i in 0..1000 {
+            spawn({
+                let cell = cell.clone();
+                async move {
+                    task::yield_now().await;
+                    cell.set(cell.get() + 1);
+                    task::yield_now().await;
+                    cell.set(cell.get() + 1);
+                    task::yield_now().await;
+                }
+            });
+            task::yield_now().await;
+        }
+
+    })
+    .unwrap();
+    println!("{cell:?}");
+    println!("{:?}", start.elapsed()); 
 }

@@ -1,18 +1,10 @@
-use io_uring::{Builder, IoUring};
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub(crate) use linux::Driver; 
 
-use std::io; 
+#[cfg(not(target_os = "linux"))]
+mod non_linux;
+#[cfg(not(target_os = "linux"))]
+pub use non_linux::Driver; 
 
-const DEFAULT_ENTRIES : u32 = 2048; 
-
-pub(crate) struct Driver {
-    io_uring: IoUring, 
-}
-
-
-impl Driver {
-    pub fn new() -> io::Result<Driver> {
-        let io_uring = io_uring::IoUring::builder().build(DEFAULT_ENTRIES)?; 
-        let driver = Driver { io_uring }; 
-        Ok(driver)
-    }
-}

@@ -6,7 +6,7 @@ use std::{
     cell::UnsafeCell,
     future::Future,
     hint::unreachable_unchecked,
-    mem::replace,
+    mem::{replace, transmute},
     pin::Pin,
     task::{Context, Poll, Waker},
 };
@@ -83,7 +83,7 @@ where
         }
     }
     #[track_caller]
-    fn poll_join(self: Pin<&Self>, cx: &mut Context, out: &mut dyn Any) {
+    unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, out: *mut ()) {
         // SAFETY: this is ok because the reference does not outlive the function.
         //         thus, there cannot be two references to this task.
         let task = unsafe { &mut *self.cell.get() };
@@ -93,7 +93,7 @@ where
 
             match payload {
                 Payload::Ready { output } => {
-                    let out: &mut Poll<F::Output> = out.downcast_mut().unwrap();
+                    let out: &mut Poll<F::Output> = transmute(out);
                     *out = Poll::Ready(output);
                 }
                 Payload::Taken => {

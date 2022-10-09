@@ -1,12 +1,19 @@
 use driver::Driver;
 use executor::Executor;
 use std::cell::RefCell;
-use std::future::Future;
-use std::panic::Location;
+use std::future::{self, Future};
+use std::io;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{ready, Context, Poll};
 
+use crate::pin;
+use crate::runtime::waker::waker;
 use crate::task::JoinHandle;
 
+use self::config::Config;
+
+mod config;
 mod driver;
 mod executor;
 mod unique_queue;
@@ -19,19 +26,18 @@ thread_local! {
 /// Returns a handle to the currently running [`Runtime`].
 /// # Panics
 /// This will panic if called outside the context of a osiris runtime.
-/// It is ok to call this function from a spawned task or from a [blocked on](block_on) future. 
+/// It is ok to call this function from a spawned task or from a [blocked on](block_on) future.
 #[track_caller]
 pub fn current() -> Runtime {
     if let Some(runtime) = Runtime::current() {
-        return runtime 
+        return runtime;
     }
     panic!("called `current` from the outside of a runtime context.")
 }
 
-pub fn block_on<F: Future>(f: F) -> F::Output {
-    Runtime::new().block_on(f)
+pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
+    Runtime::new()?.block_on(f)
 }
-
 
 #[track_caller]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
@@ -47,16 +53,23 @@ pub(crate) fn current_unwrap(fun: &str) -> Runtime {
 pub struct Runtime(Rc<Inner>);
 
 pub struct Inner {
-    _driver: Driver,
+    config: Config,
+    driver: Driver,
     executor: Executor,
 }
 
 impl Runtime {
-    pub fn new() -> Runtime {
-        Runtime(Rc::new(Inner {
-            _driver: Driver {},
-            executor: Executor::new(),
-        }))
+    pub fn new() -> io::Result<Runtime> {
+        let config = Config::default();
+        let driver = Driver::new(config.clone())?;
+        let executor = Executor::new();
+        let inner = Inner {
+            config,
+            driver,
+            executor,
+        };
+        let runtime = Runtime(Rc::new(inner));
+        Ok(runtime)
     }
 
     pub fn current() -> Option<Runtime> {
@@ -98,21 +111,23 @@ impl Runtime {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
+    /// # fn main() -> std::io::Result<()> {
     /// use osiris::runtime::Runtime;
     ///
     /// // Create the runtime
-    /// let rt  = Runtime::new();
+    /// let rt  = Runtime::new()?;
     ///
     /// // Execute the future, blocking the current thread until completion
     /// rt.block_on(async {
     ///     println!("hello");
     /// });
+    /// # Ok(())}
     /// ```
     ///
     /// [handle]: fn@Handle::block_on
     #[track_caller]
-    pub fn block_on<F>(&self, future: F) -> F::Output
+    pub fn block_on<F>(&self, mut future: F) -> io::Result<F::Output>
     where
         F: Future,
     {
@@ -120,12 +135,37 @@ impl Runtime {
             Runtime::current().is_none(),
             "called `block_on` from the inside of another osiris runtime."
         );
+
         let _h = self.enter();
-        self.0.executor.block_on(future)
+
+        let Inner {
+            executor,
+            config,
+            driver,
+        } = &*self.0;
+
+        pin!(future);
+        let mut handle = unsafe { executor.block_on_spawn(future) };
+        let waker = waker(0);
+        let ref mut cx = Context::from_waker(&waker);
+        waker.wake_by_ref();
+        loop {
+            executor.poll(config.event_interval);
+
+            if executor.is_woken() {
+                // driver.submit_yield()?;
+            } else {
+                // driver.submit_wait()?;
+            }
+            let handle = unsafe { Pin::new_unchecked(&mut handle) };
+            if let Poll::Ready(out) = handle.poll(cx) {
+                return Ok(out);
+            }
+        }
     }
 
     pub fn enter(&self) -> impl Drop + '_ {
-        struct Enter<'a>(Option<Runtime>, &'a Runtime);
+        struct Enter<'a>(Option<Runtime>, &'a ());
         impl<'a> Drop for Enter<'a> {
             fn drop(&mut self) {
                 RUNTIME.with(|cell| cell.replace(self.0.take()));
@@ -133,6 +173,6 @@ impl Runtime {
         }
         let new_rt = Some(self.clone());
         let rt = RUNTIME.with(|cell| cell.replace(new_rt));
-        Enter(rt, &self)
+        Enter(rt, &())
     }
 }

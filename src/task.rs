@@ -25,7 +25,7 @@ where
 pub(crate) trait Task {
     fn abort(self: Pin<&Self>);
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()>;
-    fn poll_join(self: Pin<&Self>, cx: &mut Context, output: &mut dyn Any);
+    unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, ptr: *mut ());
 }
 
 impl dyn Task {
