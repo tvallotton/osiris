@@ -1,17 +1,17 @@
-use driver::Driver;
-use executor::Executor;
 use std::cell::RefCell;
-use std::future::{self, Future};
+use std::future::Future;
 use std::io;
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::rc::Rc;
-use std::task::{ready, Context, Poll};
-
-use crate::pin;
-use crate::runtime::waker::waker;
-use crate::task::JoinHandle;
+use std::task::{Context, Poll};
 
 use self::config::Config;
+use crate::pin;
+use crate::runtime::waker::{main_waker, waker};
+use crate::task::JoinHandle;
+use driver::Driver;
+use executor::Executor;
 
 mod config;
 mod driver;
@@ -81,7 +81,6 @@ impl Runtime {
         F: Future + 'static,
     {
         let task = self.0.executor.spawn(future);
-
         JoinHandle::new(task)
     }
 
@@ -92,50 +91,64 @@ impl Runtime {
     /// complete, and yielding its resolved result. Any tasks or timers
     /// which the future spawns internally will be executed on the runtime.
     ///
-    /// # Current thread scheduler
     ///
-    /// When the current thread scheduler is enabled `block_on`
-    /// can be called concurrently from multiple threads. The first call
-    /// will take ownership of the io and timer drivers. This means
-    /// other threads which do not own the drivers will hook into that one.
-    /// When the first `block_on` completes, other threads will be able to
-    /// "steal" the driver to allow continued execution of their futures.
+    /// After `block_on` returns any pending spawned tasks will remain in the
     ///
     /// Any spawned tasks will be suspended after `block_on` returns. Calling
     /// `block_on` again will resume previously spawned tasks.
     ///
     /// # Panics
     ///
-    /// This function panics if the provided future panics, or if called within an
-    /// asynchronous execution context.
+    /// This function panics if the blocked on future panics.
+    /// Panics on children tasks are catched.
+    ///
     ///
     /// # Examples
     ///
     /// ```
     /// # fn main() -> std::io::Result<()> {
     /// use osiris::runtime::Runtime;
+    /// use osiris::task::yield_now;
     ///
     /// // Create the runtime
     /// let rt  = Runtime::new()?;
     ///
     /// // Execute the future, blocking the current thread until completion
     /// rt.block_on(async {
+    ///     yield_now().await;
     ///     println!("hello");
     /// });
     /// # Ok(())}
     /// ```
     ///
     /// [handle]: fn@Handle::block_on
-    #[track_caller]
-    pub fn block_on<F>(&self, mut future: F) -> io::Result<F::Output>
+    pub fn block_on<F>(&self, future: F) -> io::Result<F::Output>
     where
         F: Future,
     {
+        pin!(future);
+        loop {
+            let event_loop = AssertUnwindSafe(|| self.event_loop(future));
+            match catch_unwind(event_loop) {
+                Ok(result) => return result,
+                Err(error) => {
+                    let queue = self.0.executor.tasks.borrow();
+                    if queue.contains_key(&0) {
+                        continue;
+                    }
+                    resume_unwind(error);
+                }
+            }
+        }
+    }
+    /// This is the main loop
+    fn event_loop<F: Future>(&self, future: Pin<&mut F>) -> io::Result<F::Output> {
         assert!(
             Runtime::current().is_none(),
             "called `block_on` from the inside of another osiris runtime."
         );
-
+        // we enter the runtime context so functions like `spawn` are
+        // available.
         let _h = self.enter();
 
         let Inner {
@@ -144,22 +157,36 @@ impl Runtime {
             driver,
         } = &*self.0;
 
-        pin!(future);
+        // # Safety
+        // This operation is safe because the task will not outlive the function scope.
+        // This is also true for the case of a panic. If the main task panicked on `poll`,
+        // it will not have been returned to the task queue, and will have been dropped in
+        // the call to `Executor::poll`.
         let mut handle = unsafe { executor.block_on_spawn(future) };
-        let waker = waker(0);
-        let ref mut cx = Context::from_waker(&waker);
-        waker.wake_by_ref();
+
+        // we make sure the main task is awake so it gets executed.
+        waker(0).wake();
+        // we also make sure the waker for the JoinHandle gets registered
+        // by polling the JoinHandle before polling the main task.
+        executor.main_awoken.set(true);
+        let main_waker = main_waker();
+        let ref mut cx = Context::from_waker(&main_waker);
+
         loop {
+            let handle = Pin::new(&mut handle);
+
+            if executor.main_awoken.get() {
+                if let Poll::Ready(out) = handle.poll(cx) {
+                    return Ok::<_, io::Error>(out);
+                }
+            }
+
             executor.poll(config.event_interval);
 
             if executor.is_woken() {
-                // driver.submit_yield()?;
+                driver.submit_yield()?;
             } else {
-                // driver.submit_wait()?;
-            }
-            let handle = unsafe { Pin::new_unchecked(&mut handle) };
-            if let Poll::Ready(out) = handle.poll(cx) {
-                return Ok(out);
+                driver.submit_wait()?;
             }
         }
     }
@@ -174,5 +201,15 @@ impl Runtime {
         let new_rt = Some(self.clone());
         let rt = RUNTIME.with(|cell| cell.replace(new_rt));
         Enter(rt, &())
+    }
+
+    pub fn clear(&mut self) {
+        todo!()
+    }
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        todo!()
     }
 }

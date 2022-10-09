@@ -1,3 +1,5 @@
+use std::hint::unreachable_unchecked;
+
 use osiris::runtime::block_on;
 use osiris::spawn;
 use osiris::task::yield_now;
@@ -6,7 +8,7 @@ use osiris::task::yield_now;
 fn bar() {
     use std::cell::Cell;
     use std::rc::Rc;
-    let start = std::time::Instant::now();
+    // let start = std::time::Instant::now();
     let cell = Rc::new(Cell::new(0));
     block_on(async {
         for _ in 0..100 {
@@ -14,7 +16,7 @@ fn bar() {
                 let cell = cell.clone();
                 async move {
                     let mut tasks = vec![];
-                    for i in 0..1000 {
+                    for i in 0..100 {
                         let task = spawn({
                             let cell = cell.clone();
                             async move {
@@ -31,6 +33,7 @@ fn bar() {
                     }
                     for task in tasks {
                         task.await;
+                        panic!("asd");
                     }
                 }
             });
@@ -42,7 +45,7 @@ fn bar() {
     })
     .unwrap();
     println!("{cell:?}");
-    println!("{:?}", start.elapsed());
+    // println!("{:?}", start.elapsed());
 }
 
 // #[test]

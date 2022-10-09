@@ -31,7 +31,9 @@ impl Driver {
         let id = self.event_id;
         let entry = entry.user_data(id);
         self.event_id = id.overflowing_add(1).0;
-        self.io_uring.submission().push(&entry).ok()?;
+        unsafe {
+            self.io_uring.submission().push(&entry).ok()?;
+        }
         Some(id)
     }
 

@@ -93,7 +93,7 @@ where
 
             match payload {
                 Payload::Ready { output } => {
-                    let out: &mut Poll<F::Output> = transmute(out);
+                    let out: &mut Poll<F::Output> = unsafe { transmute(out) };
                     *out = Poll::Ready(output);
                 }
                 Payload::Taken => {

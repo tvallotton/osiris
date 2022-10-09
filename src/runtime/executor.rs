@@ -14,9 +14,9 @@ use std::{
     task::{Context, Poll},
 };
 pub(crate) struct Executor {
-    tasks: RefCell<HashMap<usize, Pin<Rc<dyn Task>>, NoopHasher>>,
+    pub(crate) tasks: RefCell<HashMap<usize, Pin<Rc<dyn Task>>, NoopHasher>>,
     pub(crate) woken: RefCell<UniqueQueue<usize>>,
-
+    pub(crate) main_awoken: Cell<bool>,
     task_id: Cell<usize>,
 }
 
@@ -25,24 +25,28 @@ impl Executor {
         Executor {
             tasks: RefCell::new(HashMap::with_capacity_and_hasher(4096, NoopHasher(0))),
             woken: RefCell::new(UniqueQueue::with_capacity(4096)),
-
+            main_awoken: Cell::new(true),
             // we initialize it to one because 0 is reserved for the blocked_on task.
             task_id: Cell::new(1),
         }
     }
 
-    /// 
+    ///
     /// # Safety
-    /// The runtime cannot outlive the future.
+    /// The task cannot outlive this future. 
     ///
     #[inline(never)]
     pub unsafe fn block_on_spawn<F>(&self, future: Pin<&mut F>) -> JoinHandle<F::Output>
     where
         F: Future,
     {
-        let ptr: *mut () = transmute(future);
+        // this trick will let us upgrade the lifetime
+        // of F into a 'static lifetime. The caller must
+        // ensure this invariant is met.
+        let ptr: *mut () = unsafe { transmute(future) };
+
         let future = std::future::poll_fn(move |cx| {
-            let future: Pin<&mut F> = transmute(ptr);
+            let future: Pin<&mut F> = unsafe { transmute(ptr) };
             future.poll(cx)
         });
 
