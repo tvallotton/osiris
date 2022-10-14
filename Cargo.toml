@@ -1,0 +1,27 @@
+[package]
+name = "osiris"
+version = "0.1.0"
+edition = "2021"
+
+
+[profile.bench]
+debug = true
+
+[profile.release]
+debug = true
+
+[features]
+rt = []
+net = ["socket2"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+io-uring = {version = "0.5.6", features = ["unstable"]}
+
+[dependencies]
+libc = "0.2.134"
+pin-cell = "0.2.0"
+pin-project-lite = "0.2.9"
+
+socket2 = {version = "0.4", features = ["all"], optional = true}
+
+[dev-dependencies]

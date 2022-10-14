@@ -1,0 +1,14 @@
+version: "3.7"
+services:
+  linux: 
+    container_name: osiris
+    build: .
+    volumes: 
+      - ./:/home/osiris
+    command: "cargo watch -c"
+    privileged: true
+    tty: true
+
+
+
+    
