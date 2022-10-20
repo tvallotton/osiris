@@ -306,6 +306,9 @@ impl OpenOptions {
     pub async fn open(&self, path: impl AsRef<Path>) -> io::Result<File> {
         use io_uring::opcode;
 
+        let flags = self.access_mode();
+        let dirfd = libc::AT_FDCWD;
+        // opcode::OpenAt::new(dirfd, pathname);
         // Await the completion of the event
         // let completion = op.await;
 

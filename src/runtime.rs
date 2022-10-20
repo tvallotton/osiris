@@ -19,11 +19,11 @@ mod unique_queue;
 pub(crate) mod waker;
 
 thread_local! {
-    static RUNTIME: RefCell<Option<Runtime>>= RefCell::new(None);
+    pub(crate) static RUNTIME: RefCell<Option<Runtime>>= RefCell::new(None);
 }
 
 thread_local! {
-    static TASK_ID: Cell<Option<usize>> = Cell::new(None);
+    pub(crate) static TASK_ID: Cell<Option<usize>> = Cell::new(None);
 }
 
 /// Returns a handle to the currently running [`Runtime`].
@@ -31,11 +31,8 @@ thread_local! {
 /// This will panic if called outside the context of a osiris runtime.
 /// It is ok to call this function from a spawned task or from a [blocked on](block_on) future.
 #[track_caller]
-pub fn current() -> Runtime {
-    if let Some(runtime) = Runtime::current() {
-        return runtime;
-    }
-    panic!("called `current` from the outside of a runtime context.")
+pub fn current() -> Option<Runtime> {
+    RUNTIME.with(|cell| cell.borrow().clone())
 }
 
 pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
@@ -44,7 +41,7 @@ pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
 
 #[track_caller]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
-    if let Some(rt) = Runtime::current() {
+    if let Some(rt) = current() {
         return rt;
     }
     panic!("called `{fun}` from the outside of a runtime context.")
@@ -57,7 +54,7 @@ pub struct Runtime(pub(crate) Rc<Inner>);
 
 pub(crate) struct Inner {
     pub config: Config,
-    pub driver: Driver,
+    pub driver: Rc<Driver>,
     pub executor: Executor,
 }
 
@@ -67,7 +64,7 @@ impl Runtime {
     /// struct.
     pub fn new() -> io::Result<Runtime> {
         let config = Config::default();
-        let driver = Driver::new(config.clone())?;
+        let driver = Rc::new(Driver::new(config.clone())?);
         let executor = Executor::new();
         let inner = Inner {
             config,
@@ -76,10 +73,6 @@ impl Runtime {
         };
         let runtime = Runtime(Rc::new(inner));
         Ok(runtime)
-    }
-    /// Returns a handle to the current runtime context.
-    pub fn current() -> Option<Runtime> {
-        RUNTIME.with(|cell| cell.borrow().clone())
     }
 
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
@@ -132,33 +125,27 @@ impl Runtime {
     where
         F: Future,
     {
-        TASK_ID.with(|task_id| {
-            loop {
-                // SAFETY: The future is never moved
-                let future = unsafe { Pin::new_unchecked(&mut future) };
+        loop {
+            // SAFETY: The future is never moved
+            let future = unsafe { Pin::new_unchecked(&mut future) };
 
-                let event_loop = AssertUnwindSafe(move || self.event_loop(future, task_id));
-                match catch_unwind(event_loop) {
-                    Ok(result) => return result,
-                    Err(error) => {
-                        let queue = self.0.executor.tasks.borrow();
-                        if queue.contains_key(&0) {
-                            continue;
-                        }
-                        resume_unwind(error);
+            let event_loop = AssertUnwindSafe(move || self.event_loop(future));
+            match catch_unwind(event_loop) {
+                Ok(result) => return result,
+                Err(error) => {
+                    let queue = self.0.executor.tasks.borrow();
+                    if queue.contains_key(&0) {
+                        continue;
                     }
+                    resume_unwind(error);
                 }
             }
-        })
+        }
     }
     /// This is the main loop
-    fn event_loop<F: Future>(
-        &self,
-        future: Pin<&mut F>,
-        task_id: &Cell<Option<usize>>,
-    ) -> io::Result<F::Output> {
+    fn event_loop<F: Future>(&self, future: Pin<&mut F>) -> io::Result<F::Output> {
         assert!(
-            Runtime::current().is_none(),
+            current().is_none(),
             "called `block_on` from the inside of another osiris runtime."
         );
         // we enter the runtime context so functions like `spawn` are
@@ -171,7 +158,7 @@ impl Runtime {
             driver,
         } = &*self.0;
 
-        // # Safety
+        // # Safety:
         // This operation is safe because the task will not outlive the function scope.
         // This is also true for the case of a panic. If the main task panicked on `poll`,
         // it will not have been returned to the task queue, and will have been dropped in
@@ -186,24 +173,26 @@ impl Runtime {
         let main_waker = main_waker();
         let cx = &mut Context::from_waker(&main_waker);
 
-        loop {
-            let handle = Pin::new(&mut handle);
+        TASK_ID.with(|task_id| {
+            loop {
+                let handle = Pin::new(&mut handle);
 
-            if executor.main_awoken.get() {
-                if let Poll::Ready(out) = handle.poll(cx) {
-                    return Ok::<_, io::Error>(out);
+                if executor.main_awoken.get() {
+                    if let Poll::Ready(out) = handle.poll(cx) {
+                        return Ok::<_, io::Error>(out);
+                    }
                 }
-            }
 
-            executor.poll(config.event_interval, task_id);
-            executor.remove_aborted();
-            if executor.is_woken() {
-                driver.submit_and_yield()?;
-            } else {
-                driver.submit_and_wait()?;
+                executor.poll(config.event_interval, task_id);
+                executor.remove_aborted();
+                if executor.is_woken() {
+                    driver.submit_and_yield()?;
+                } else {
+                    driver.submit_and_wait()?;
+                }
+                // driver.poll();
             }
-            // driver.poll();
-        }
+        })
     }
 
     pub fn enter(&self) -> impl Drop + '_ {

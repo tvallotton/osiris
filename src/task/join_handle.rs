@@ -20,6 +20,12 @@ impl<T> JoinHandle<T> {
             _t: PhantomData::default(),
         }
     }
+    /// This function will schedule the task to be aborted in the next event loop.  
+    /// The task is not guaranteed to be cancelled immediately. It may still be possible
+    /// for the task to be finished before it gets aborted.
+    pub fn abort(self) {
+        self.task.as_ref().abort();
+    }
 }
 
 impl<T> Future for JoinHandle<T> {

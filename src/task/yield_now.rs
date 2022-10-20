@@ -38,10 +38,10 @@ pub async fn yield_now() {
     let mut ready = false;
     poll_fn(move |cx| {
         if ready {
-            ready = true;
             Poll::Ready(())
         } else {
-            cx.waker().wake_by_ref(); 
+            ready = true;
+            cx.waker().wake_by_ref();
             Poll::Pending
         }
     })

@@ -1,32 +1,6 @@
+use crate::hasher::NoopHasher;
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash, Hasher};
-#[derive(Default)]
-pub(crate) struct NoopHasher(pub u64);
-impl Hasher for NoopHasher {
-    fn finish(&self) -> u64 {
-        self.0 as u64
-    }
-    fn write(&mut self, _: &[u8]) {
-        unimplemented!()
-    }
-    fn write_usize(&mut self, i: usize) {
-        self.0 = i as u64;
-    }
-    fn write_u32(&mut self, i: u32) {
-        self.0 = i as u64;
-    }
-    fn write_u64(&mut self, i: u64) {
-        self.0 = i as u64;
-    }
-}
-
-impl BuildHasher for NoopHasher {
-    type Hasher = NoopHasher;
-    #[inline]
-    fn build_hasher(&self) -> Self::Hasher {
-        NoopHasher(self.0)
-    }
-}
 
 #[derive(Debug)]
 pub(crate) struct UniqueQueue<T> {
@@ -40,9 +14,10 @@ impl<T: Eq + Copy + Hash + Default + Ord> UniqueQueue<T> {
         UniqueQueue {
             first: T::default(),
             last: T::default(),
-            map: HashMap::with_capacity_and_hasher(capacity, NoopHasher(0)),
+            map: HashMap::with_capacity_and_hasher(capacity, NoopHasher::new()),
         }
     }
+
     pub fn len(&self) -> usize {
         self.map.len()
     }
@@ -51,7 +26,7 @@ impl<T: Eq + Copy + Hash + Default + Ord> UniqueQueue<T> {
         self.map.insert(self.last, item);
         self.last = item;
     }
-    // #[inline(never)]
+
     pub fn pop_front(&mut self) -> Option<T> {
         let (_, first) = self.map.remove_entry(&self.first)?;
         self.first = first;

@@ -36,12 +36,14 @@ impl Executor {
     where
         F: Future,
     {
+        // SAFETY:
         // this trick will let us upgrade the lifetime
         // of F into a 'static lifetime. The caller must
         // ensure this invariant is met.
         let ptr: *mut () = unsafe { transmute(future) };
 
         let future = poll_fn(move |cx| {
+            // SAFETY: explained in the transmute above.
             let future: Pin<&mut F> = unsafe { transmute(ptr) };
             future.poll(cx)
         });
@@ -66,7 +68,7 @@ impl Executor {
         future
     }
     /// It polls at most `ticks` futures. It may poll less futures than
-    /// the specified number of ticks. If a future finishes it will be
+    /// the specified number of ticks. If a future finishes or panics it will be
     /// permanently removed from the task queue.
     #[inline]
     pub fn poll(&self, ticks: u32, task_id: &Cell<Option<usize>>) {
@@ -100,14 +102,19 @@ impl Executor {
     }
     /// Removes aborted tasks from the executor.
     pub fn remove_aborted(&self) {
-        let mut aborted = self.aborted.borrow_mut();
-        while let Some(task_id) = aborted.pop_front() {
-            let mut tasks = self.tasks.borrow_mut();
-            let task = tasks.remove(&task_id);
-            // we first drop the task queue, 
-            // in case the task wants to spawn other functions
-            drop(tasks);
-            drop(task);
+        loop {
+            let mut aborted = self.aborted.borrow_mut();
+            if let Some(task_id) = aborted.pop_front() {
+                let mut tasks = self.tasks.borrow_mut();
+                let task = tasks.remove(&task_id);
+                // we first drop the task queue,
+                // in case the task destructors wants to spawn other futures
+                drop(tasks);
+                // we now drop the aborted queue in case the task destructor
+                // wants to abort another task.
+                drop(aborted);
+                drop(task);
+            }
         }
     }
 

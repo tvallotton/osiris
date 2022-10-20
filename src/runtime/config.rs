@@ -9,8 +9,8 @@ pub struct Config {
     /// before polling for events.
     ///
     /// Setting the event interval determines the effective "priority" of delivering
-    /// these external events (which may wake up additional tasks), compared to
-    /// executing tasks that are currently ready to run. A smaller value is useful
+    /// these external events (which may wake up additional tasks, or cancel aborted tasks),
+    /// compared to executing tasks that are currently ready to run. A smaller value is useful
     /// when tasks frequently spend a long time in polling,  which can result in overly
     /// long delays picking up I/O events. Conversely, picking up new events requires extra
     /// synchronization and syscall overhead, so if tasks generally complete their polling
@@ -25,6 +25,7 @@ pub struct Config {
     /// The number of entries used in the io-uring ringbuffer.
     /// This field determines the maximum number of concurrent io operations
     /// that can be submitted to the kernel at a time. It defaults to 2048.
+    /// This value cannot be greater than 4096.
     pub(crate) io_uring_entries: u32,
     /// Determines whether the kernel will be notified for events, or whether it will be continously
     /// polling for events

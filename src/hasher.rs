@@ -1,4 +1,4 @@
-use std::hash::{Hasher, BuildHasher};
+use std::hash::{BuildHasher, Hasher};
 
 #[derive(Default)]
 pub(crate) struct NoopHasher(u64);

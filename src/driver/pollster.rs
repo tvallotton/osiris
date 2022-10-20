@@ -1,7 +1,7 @@
 use crate::hasher::NoopHasher;
 use crate::runtime::{Config, Mode};
-use io_uring::IoUring;
 use io_uring::squeue::Entry;
+use io_uring::IoUring;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
@@ -21,14 +21,20 @@ impl Pollster {
         let io_uring = builder.build(config.io_uring_entries)?;
         Ok(Pollster::IoUring(io_uring))
     }
-
-
-    pub unsafe fn sumit_io(&mut self,entry: Entry) {
+    /// # Safety
+    ///
+    /// Developers must ensure that parameters of the entry (such as buffer) are valid and will
+    /// be valid for the entire duration of the operation, otherwise it may cause memory problems.
+    pub unsafe fn sumit_io(&mut self, entry: Entry) -> std::io::Result<()> {
         match self {
             Pollster::IoUring(ring) => {
-
-
-
+                if ring.submission().is_full() {
+                    ring.submit()?;
+                    // SAFETY:
+                    // the validity of the entry is upheld by the caller.
+                    unsafe { ring.submission().push(&entry).ok() };
+                }
+                Ok(())
             }
         }
     }

@@ -1,17 +1,17 @@
-use pin_cell::PinCell;
-use pin_project_lite::pin_project;
-
-use super::Task;
-use crate::runtime::waker::waker;
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::{RefCell, UnsafeCell};
+use std::borrow::Borrow;
+use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::hint::unreachable_unchecked;
 use std::intrinsics::transmute;
 use std::marker::PhantomPinned;
 use std::mem::replace;
 use std::pin::Pin;
+use std::slice::SliceIndex;
 use std::task::{Context, Poll, Waker};
+
+use crate::runtime::{current, current_unwrap};
+
+use super::Task;
 
 pub(crate) struct RawTask<F: Future> {
     /// Tasks are shared mutable state
@@ -19,11 +19,11 @@ pub(crate) struct RawTask<F: Future> {
     /// Even though strictly speaking cells do not pin project,
     /// we will consider the contents of this cell pinned.
     cell: RefCell<Inner<F>>,
+    pub join_waker: Cell<Option<Waker>>,
     _pin: PhantomPinned,
 }
 
 pub(crate) struct Inner<F: Future> {
-    pub join_waker: Option<Waker>,
     pub task_id: usize,
     pub payload: Payload<F>,
     _pin: PhantomPinned,
@@ -39,8 +39,8 @@ pub(crate) enum Payload<F: Future> {
 impl<F: Future> RawTask<F> {
     pub fn new(task_id: usize, fut: F) -> Self {
         RawTask {
+            join_waker: Cell::new(None),
             cell: RefCell::new(Inner {
-                join_waker: None,
                 task_id,
                 payload: Payload::Pending { fut },
                 _pin: Default::default(),
@@ -50,14 +50,9 @@ impl<F: Future> RawTask<F> {
     }
 }
 
-impl<F: Future> Inner<F> {
-    fn wake_join(&mut self) {
-        if let Some(waker) = &self.join_waker {
-            waker.wake_by_ref();
-        }
-    }
-    fn insert_waker(&mut self, cx: &mut Context) {
-        let _ = self.join_waker.insert(cx.waker().clone());
+impl<F: Future> RawTask<F> {
+    fn insert_waker(&self, cx: &mut Context) {
+        self.join_waker.set(Some(cx.waker().clone()));
     }
 }
 
@@ -75,24 +70,24 @@ where
         if let Payload::Pending { .. } = task.payload {
             task.payload = Payload::Aborted;
         }
-        task.join_waker.take().map(|waker| waker.wake());
+        self.join_waker.take().map(|waker| waker.wake());
     }
 
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()> {
         let mut task = self.cell.borrow_mut();
         if let Payload::Pending { fut } = &mut task.payload {
             // SAFETY:
-            // we can safely project the pin because the 
-            // payload future is never moved. 
+            // we can safely project the pin because the
+            // payload future is never moved.
             // Also, safe code can't move the future because
-            // RawTask is !Unpin, and its contents are private, 
+            // RawTask is !Unpin, and its contents are private,
             // so it cannot be moved by safe code.
             let fut = unsafe { Pin::new_unchecked(fut) };
 
             if let Poll::Ready(output) = fut.poll(cx) {
                 task.payload = Payload::Ready { output };
                 // let's wake the joining task.
-                task.wake_join();
+                self.wake_join();
                 Poll::Ready(())
             } else {
                 Poll::Pending
@@ -103,16 +98,30 @@ where
         }
     }
 
-    fn abort(self: Pin<&Self>) {}
+    /// This function will schedule the task for cancellation.
+    fn abort(self: Pin<&Self>) {
+        current_unwrap("abort")
+            .0
+            .executor
+            .aborted
+            .borrow_mut()
+            .push_back(self.cell.borrow().task_id);
+    }
+
+    fn wake_join(&self) {
+        if let Some(waker) = self.join_waker.take() {
+            waker.wake();
+        }
+    }
 
     /// # Safety
     /// The caller must uphold that the pointer `out: *mut ()` points to a valid
     /// `Poll<F::Output>`, where `F` is the spawned future of the associated task.
     #[track_caller]
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, out: *mut ()) {
+        self.insert_waker(cx);
         // we must be careful not to accidentally move the task here.
         let mut task = self.cell.borrow_mut();
-        task.insert_waker(cx);
 
         if !matches!(task.payload, Payload::Pending { .. }) {
             // we can move anything now that we know the pin ended.

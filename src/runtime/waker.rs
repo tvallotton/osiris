@@ -35,7 +35,7 @@ pub(crate) fn main_waker() -> Waker {
 }
 
 fn main_raw_waker() -> RawWaker {
-    unsafe { RawWaker::new(std::ptr::null(), &MAIN_VTABLE) }
+    RawWaker::new(std::ptr::null(), &MAIN_VTABLE)
 }
 
 const MAIN_VTABLE: RawWakerVTable = {
