@@ -6,8 +6,8 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
-use crate::driver::Driver;
 use crate::runtime::waker::{main_waker, waker};
+use crate::shared_driver::SharedDriver;
 use crate::task::JoinHandle;
 pub use config::{Config, Mode};
 use executor::Executor;
@@ -19,10 +19,12 @@ mod unique_queue;
 pub(crate) mod waker;
 
 thread_local! {
+    /// This is the runtime thread local. It determines in which runtime context we are currently in.
     pub(crate) static RUNTIME: RefCell<Option<Runtime>>= RefCell::new(None);
 }
 
 thread_local! {
+    /// This is the task thread local. It determines which task is currently being executed.
     pub(crate) static TASK_ID: Cell<Option<usize>> = Cell::new(None);
 }
 
@@ -48,14 +50,12 @@ pub(crate) fn current_unwrap(fun: &str) -> Runtime {
 }
 
 /// The osiris local runtime.
-/// For the moment it cannot be customized.
-#[derive(Clone)]
-pub struct Runtime(pub(crate) Rc<Inner>);
 
-pub(crate) struct Inner {
+#[derive(Clone)]
+pub(crate) struct Runtime {
     pub config: Config,
-    pub driver: Rc<Driver>,
-    pub executor: Executor,
+    pub driver: SharedDriver,
+    pub executor: Rc<Executor>,
 }
 
 impl Runtime {
@@ -64,22 +64,21 @@ impl Runtime {
     /// struct.
     pub fn new() -> io::Result<Runtime> {
         let config = Config::default();
-        let driver = Rc::new(Driver::new(config.clone())?);
-        let executor = Executor::new();
-        let inner = Inner {
+        let driver = SharedDriver::new(config.clone())?;
+        let executor = Rc::new(Executor::new());
+        let rt = Runtime {
             config,
             driver,
             executor,
         };
-        let runtime = Runtime(Rc::new(inner));
-        Ok(runtime)
+        Ok(rt)
     }
 
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
     where
         F: Future + 'static,
     {
-        let task = self.0.executor.spawn(future);
+        let task = self.executor.spawn(future);
         JoinHandle::new(task)
     }
 
@@ -133,7 +132,7 @@ impl Runtime {
             match catch_unwind(event_loop) {
                 Ok(result) => return result,
                 Err(error) => {
-                    let queue = self.0.executor.tasks.borrow();
+                    let queue = self.executor.tasks.borrow();
                     if queue.contains_key(&0) {
                         continue;
                     }
@@ -152,11 +151,11 @@ impl Runtime {
         // available.
         let _h = self.enter();
 
-        let Inner {
+        let Runtime {
             executor,
             config,
             driver,
-        } = &*self.0;
+        } = self;
 
         // # Safety:
         // This operation is safe because the task will not outlive the function scope.
@@ -173,25 +172,23 @@ impl Runtime {
         let main_waker = main_waker();
         let cx = &mut Context::from_waker(&main_waker);
 
-        TASK_ID.with(|task_id| {
-            loop {
-                let handle = Pin::new(&mut handle);
+        TASK_ID.with(|task_id| loop {
+            executor.poll(config.event_interval, task_id);
 
-                if executor.main_awoken.get() {
-                    if let Poll::Ready(out) = handle.poll(cx) {
-                        return Ok::<_, io::Error>(out);
-                    }
+            let handle = Pin::new(&mut handle);
+            if executor.main_awoken.get() {
+                if let Poll::Ready(out) = handle.poll(cx) {
+                    return Ok::<_, io::Error>(out);
                 }
-
-                executor.poll(config.event_interval, task_id);
-                executor.remove_aborted();
-                if executor.is_woken() {
-                    driver.submit_and_yield()?;
-                } else {
-                    driver.submit_and_wait()?;
-                }
-                // driver.poll();
             }
+            executor.remove_aborted();
+            driver.wake_tasks();
+            if executor.is_woken() {
+                driver.submit_and_yield()?;
+            } else {
+                driver.submit_and_wait()?;
+            }
+            driver.wake_tasks();
         })
     }
 

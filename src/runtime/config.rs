@@ -60,3 +60,7 @@ impl Default for Config {
         }
     }
 }
+
+impl Config {
+    pub const DEFAULT_WAKERS: usize = 2048;
+}

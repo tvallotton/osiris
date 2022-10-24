@@ -96,21 +96,3 @@ impl dyn Task {
         Rc::pin(RawTask::new(task_id, fut))
     }
 }
-/// This a wrapper for pinned tasks that will abort them on drop.
-/// which is used to make sure the runtime aborts tasks that panic.
-pub(crate) struct AbortOnDrop(Pin<Rc<dyn Task>>);
-
-impl AbortOnDrop {
-    pub(crate) fn new<F: Future + 'static>(task_id: usize, fut: F) -> AbortOnDrop {
-        AbortOnDrop(Rc::pin(RawTask::new(task_id, fut)))
-    }
-
-    pub(crate) fn task(&self) -> Pin<Rc<dyn Task>> {
-        self.0.clone()
-    }
-}
-impl Drop for AbortOnDrop {
-    fn drop(&mut self) {
-        self.0.as_ref().abort_in_place();
-    }
-}

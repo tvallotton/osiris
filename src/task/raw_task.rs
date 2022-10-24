@@ -1,15 +1,11 @@
-use std::borrow::Borrow;
+use crate::runtime::current_unwrap;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::hint::unreachable_unchecked;
-use std::intrinsics::transmute;
 use std::marker::PhantomPinned;
 use std::mem::replace;
 use std::pin::Pin;
-use std::slice::SliceIndex;
 use std::task::{Context, Poll, Waker};
-
-use crate::runtime::{current, current_unwrap};
 
 use super::Task;
 
@@ -70,7 +66,9 @@ where
         if let Payload::Pending { .. } = task.payload {
             task.payload = Payload::Aborted;
         }
-        self.join_waker.take().map(|waker| waker.wake());
+        if let Some(waker) = self.join_waker.take() {
+            waker.wake()
+        }
     }
 
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()> {
@@ -131,7 +129,9 @@ where
                 Payload::Ready { output } => {
                     // Safety:
                     // the caller must uphold that the transmuted type is correct.
-                    let out: &mut Poll<F::Output> = unsafe { transmute(out) };
+                    let out: &mut Poll<F::Output> = unsafe {
+                        &mut *(out as *mut std::task::Poll<<F as std::future::Future>::Output>)
+                    };
                     *out = Poll::Ready(output);
                 }
                 Payload::Taken => {

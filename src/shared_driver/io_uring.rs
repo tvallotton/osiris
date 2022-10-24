@@ -12,6 +12,7 @@ use std::{
 };
 const DEFAULT_ENTRIES: u32 = 2048;
 const DEFAULT_WAKERS: usize = 2048;
+
 pub(crate) struct Driver {
     event_id: Cell<u64>,
     waiters: RefCell<HashMap<u64, Waker, NoopHasher>>,

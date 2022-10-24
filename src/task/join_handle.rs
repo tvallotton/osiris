@@ -1,7 +1,6 @@
 use super::Task;
 use std::future::Future;
 use std::marker::PhantomData;
-use std::mem::transmute;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -31,11 +30,13 @@ impl<T> JoinHandle<T> {
 impl<T> Future for JoinHandle<T> {
     type Output = T;
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        unsafe {
-            let mut output: Poll<T> = Poll::Pending;
-            let ptr = transmute(&mut output);
-            self.task.as_ref().poll_join(cx, ptr);
-            output
-        }
+        let mut output: Poll<T> = Poll::Pending;
+        let ptr = &mut output as *mut _ as *mut ();
+        // SAFETY:
+        // The output type is the same as the JoinHandle since a
+        // JoinHandle<T> cannot be constructed from a task of a
+        // type different from T.
+        unsafe { self.task.as_ref().poll_join(cx, ptr) };
+        output
     }
 }

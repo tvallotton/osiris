@@ -1,9 +1,9 @@
 // Borrowed from monoio:
+use crate::fs::File;
+use io_uring::opcode;
 use io_uring::types::Fd;
 use std::io;
-use std::path::Path;
-
-use crate::fs::File;
+use std::path::PathBuf;
 
 /// Options and flags which can be used to configure how a file is opened.
 ///
@@ -303,14 +303,22 @@ impl OpenOptions {
     /// [`InvalidInput`]: io::ErrorKind::InvalidInput
     /// [`NotFound`]: io::ErrorKind::NotFound
     /// [`PermissionDenied`]: io::ErrorKind::PermissionDenied
-    pub async fn open(&self, path: impl AsRef<Path>) -> io::Result<File> {
-        use io_uring::opcode;
+    pub async fn open(&self, path: impl Into<PathBuf>) -> io::Result<File> {
+        // let path = path.as_ref();
 
-        let flags = self.access_mode();
+        use crate::shared_driver::submit_event;
+
+        let flags = self.access_mode()?;
         let dirfd = libc::AT_FDCWD;
-        // opcode::OpenAt::new(dirfd, pathname);
-        // Await the completion of the event
-        // let completion = op.await;
+        let path = path.into();
+        let path_ptr = &path as *const _ as _;
+
+        let entry = opcode::OpenAt::new(Fd(dirfd), path_ptr)
+            .flags(flags)
+            .build();
+        unsafe {
+            submit_event(entry, path);
+        }
 
         // The file is open
         todo!()

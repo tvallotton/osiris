@@ -1,6 +1,6 @@
-use std::future::{poll_fn, Future};
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::future::{poll_fn};
+
+use std::task::{Poll};
 
 /// Yields execution back to the runtime.
 ///

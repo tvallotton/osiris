@@ -1,9 +1,6 @@
-use crate::hasher::NoopHasher;
 use crate::runtime::{Config, Mode};
 use io_uring::squeue::Entry;
 use io_uring::IoUring;
-use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 
 const DEFAULT_WAKERS: usize = 2048;
 
@@ -36,6 +33,12 @@ impl Pollster {
                 }
                 Ok(())
             }
+        }
+    }
+
+    pub fn woken(&mut self) -> impl Iterator<Item = u64> + '_ {
+        match self {
+            Pollster::IoUring(ring) => ring.completion().into_iter().map(|entry| entry.user_data()),
         }
     }
 }

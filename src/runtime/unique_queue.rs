@@ -1,6 +1,6 @@
 use crate::hasher::NoopHasher;
 use std::collections::HashMap;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::{Hash};
 
 #[derive(Debug)]
 pub(crate) struct UniqueQueue<T> {
