@@ -152,19 +152,20 @@ impl Runtime {
         waker(0).wake();
         // we also make sure the waker for the JoinHandle gets registered
         // by polling the JoinHandle before polling the main task.
-        executor.main_woken.set(true);
-        let main_waker = main_waker();
-        let cx = &mut Context::from_waker(&main_waker);
+        executor.main_handle.set(true);
+
+        let handel_waker = main_waker();
+        let handle_cx = &mut Context::from_waker(&handel_waker);
 
         TASK_ID.with(|task_id| loop {
-            executor.poll(config.event_interval, task_id);
-
+            // we must poll the JoinHandle before polling the executor
             let handle = Pin::new(&mut handle);
-            if executor.main_woken.get() {
-                if let Poll::Ready(out) = handle.poll(cx) {
+            if executor.main_handle.get() {
+                if let Poll::Ready(out) = handle.poll(handle_cx) {
                     return Ok(out);
                 }
             }
+            executor.poll(config.event_interval, task_id);
             executor.remove_aborted();
             // driver.wake_tasks();
             // if executor.is_woken() {

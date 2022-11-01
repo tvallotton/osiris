@@ -12,29 +12,39 @@ use std::rc::Rc;
 use std::task::Context;
 
 pub(crate) struct Executor {
-    pub(crate) tasks: RefCell<TaskQueue>,
+    /// This collection stores all the tasks spawned onto the runtime.
+    pub(crate) tasks: RefCell<Tasks>,
+    /// This is queue stores all woken tasks in the order they were
+    /// woken.
     pub(crate) woken: RefCell<UniqueQueue<usize>>,
+    /// This queue stores the ids for all aborted tasks.
     pub(crate) aborted: RefCell<UniqueQueue<usize>>,
-    pub(crate) main_woken: Cell<bool>,
+    /// This bool states wheather the main task's JoinHandle has been woken.
+    /// This will be true when the main task has finished.
+    pub(crate) main_handle: Cell<bool>,
+    /// A monotonically increasing counter for spawned tasks.
+    /// It always corresponds to an available task id.
     pub(crate) task_id: Cell<usize>,
 }
 
-type TaskQueue = HashMap<usize, Pin<Rc<dyn Task>>, NoopHasher>;
+type Tasks = HashMap<usize, Pin<Rc<dyn Task>>, NoopHasher>;
 
 impl Executor {
+    /// Creates a new executor
     pub fn new() -> Executor {
         Executor {
             tasks: RefCell::new(HashMap::with_capacity_and_hasher(4096, NoopHasher::new())),
             woken: RefCell::new(UniqueQueue::with_capacity(4096)),
             aborted: RefCell::new(UniqueQueue::with_capacity(4096)),
-            main_woken: Cell::new(true),
+            main_handle: Cell::new(true),
             // we initialize it to one because 0 is reserved for the blocked_on task.
             task_id: Cell::new(1),
         }
     }
 
     /// # Safety
-    /// The spawned task cannot outlive this future.    
+    /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned
+    /// task. Otherwise, a use after free will occur.    
     pub unsafe fn block_on_spawn<F>(&self, future: Pin<&mut F>) -> JoinHandle<F::Output>
     where
         F: Future,

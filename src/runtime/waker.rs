@@ -46,7 +46,7 @@ fn main_raw_waker() -> RawWaker {
 
 const MAIN_VTABLE: RawWakerVTable = {
     let wake = |_| {
-        current_unwrap("wake").executor.main_woken.set(true);
+        current_unwrap("wake").executor.main_handle.set(true);
     };
     RawWakerVTable::new(|_| main_raw_waker(), wake, wake, |_| {})
 };
