@@ -1,0 +1,12 @@
+[package]
+name = "osiris"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+io-uring = {version = "0.5.6", features = ["unstable"]}
+
+[dependencies]
+libc = "0.2.134"
