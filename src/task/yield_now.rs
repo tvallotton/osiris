@@ -1,6 +1,6 @@
-use std::future::{poll_fn};
+use std::future::poll_fn;
 
-use std::task::{Poll};
+use std::task::Poll;
 
 /// Yields execution back to the runtime.
 ///

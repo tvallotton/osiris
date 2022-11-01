@@ -1,6 +1,9 @@
-use std::{collections::HashMap, io, task::Waker};
+use std::collections::HashMap;
+use std::io;
+use std::task::Waker;
 
-use crate::{hasher::NoopHasher, runtime::Config};
+use crate::hasher::NoopHasher;
+use crate::runtime::Config;
 
 use super::pollster::Pollster;
 
@@ -42,6 +45,9 @@ impl Driver {
             Pollster::IoUring(ring) => ring.submit_and_wait(1)?,
         };
         Ok(())
+    }
+    pub fn wake_tasks(&mut self) {
+        todo!()
     }
     // /// Submits an sqe entry, and will call the waker provided when it is ready.
     // ///

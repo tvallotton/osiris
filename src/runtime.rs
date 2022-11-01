@@ -1,3 +1,7 @@
+use crate::runtime::waker::{main_waker, waker};
+use crate::shared_driver::SharedDriver;
+use crate::task::JoinHandle;
+use executor::Executor;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::io;
@@ -6,14 +10,9 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
-use crate::runtime::waker::{main_waker, waker};
-use crate::shared_driver::SharedDriver;
-use crate::task::JoinHandle;
 pub use config::{Config, Mode};
-use executor::Executor;
 
 mod config;
-
 mod executor;
 mod unique_queue;
 pub(crate) mod waker;
@@ -50,12 +49,11 @@ pub(crate) fn current_unwrap(fun: &str) -> Runtime {
 }
 
 /// The osiris local runtime.
-
 #[derive(Clone)]
-pub(crate) struct Runtime {
-    pub config: Config,
-    pub driver: SharedDriver,
-    pub executor: Rc<Executor>,
+pub struct Runtime {
+    pub(crate) config: Config,
+    pub(crate) driver: SharedDriver,
+    pub(crate) executor: Rc<Executor>,
 }
 
 impl Runtime {
@@ -73,7 +71,7 @@ impl Runtime {
         };
         Ok(rt)
     }
-
+    /// Spawns a new task onto the runtime returning a JoinHandle for that task.    
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
     where
         F: Future + 'static,
@@ -88,9 +86,6 @@ impl Runtime {
     /// This runs the given future on the current thread, blocking until it is
     /// complete, and yielding its resolved result. Any tasks or timers
     /// which the future spawns internally will be executed on the runtime.
-    ///
-    ///
-    /// After `block_on` returns any pending spawned tasks will remain in the
     ///
     /// Any spawned tasks will be suspended after `block_on` returns. Calling
     /// `block_on` again will resume previously spawned tasks.

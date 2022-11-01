@@ -2,8 +2,6 @@ use crate::runtime::{Config, Mode};
 use io_uring::squeue::Entry;
 use io_uring::IoUring;
 
-const DEFAULT_WAKERS: usize = 2048;
-
 #[non_exhaustive]
 pub(crate) enum Pollster {
     IoUring(IoUring),

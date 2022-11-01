@@ -20,7 +20,6 @@ const fn raw_waker(data: *const ()) -> RawWaker {
 const VTABLE: RawWakerVTable = {
     let wake = |data| {
         current_unwrap("wake")
-            .0
             .executor
             .woken
             .borrow_mut()
@@ -40,7 +39,7 @@ fn main_raw_waker() -> RawWaker {
 
 const MAIN_VTABLE: RawWakerVTable = {
     let wake = |_| {
-        current_unwrap("wake").0.executor.main_awoken.set(true);
+        current_unwrap("wake").executor.main_awoken.set(true);
     };
     RawWakerVTable::new(|_| main_raw_waker(), wake, wake, |_| {})
 };

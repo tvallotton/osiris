@@ -304,21 +304,14 @@ impl OpenOptions {
     /// [`NotFound`]: io::ErrorKind::NotFound
     /// [`PermissionDenied`]: io::ErrorKind::PermissionDenied
     pub async fn open(&self, path: impl Into<PathBuf>) -> io::Result<File> {
-        // let path = path.as_ref();
-
-        use crate::shared_driver::submit_event;
-
         let flags = self.access_mode()?;
         let dirfd = libc::AT_FDCWD;
         let path = path.into();
         let path_ptr = &path as *const _ as _;
 
-        let entry = opcode::OpenAt::new(Fd(dirfd), path_ptr)
+        let _entry = opcode::OpenAt::new(Fd(dirfd), path_ptr)
             .flags(flags)
             .build();
-        unsafe {
-            submit_event(entry, path);
-        }
 
         // The file is open
         todo!()

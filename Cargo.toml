@@ -21,7 +21,8 @@ io-uring = {version = "0.5.6", features = ["unstable"]}
 libc = "0.2.134"
 pin-cell = "0.2.0"
 pin-project-lite = "0.2.9"
-
+slab = "0.4.7"
 socket2 = {version = "0.4", features = ["all"], optional = true}
+
 
 [dev-dependencies]

@@ -99,7 +99,6 @@ where
     /// This function will schedule the task for cancellation.
     fn abort(self: Pin<&Self>) {
         current_unwrap("abort")
-            .0
             .executor
             .aborted
             .borrow_mut()

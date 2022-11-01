@@ -8,16 +8,16 @@ use std::task::{Context, Poll};
 pub use completion::complete;
 pub use join_handle::JoinHandle;
 pub use yield_now::yield_now;
-
 mod completion;
 mod join_handle;
 mod raw_task;
+mod shared_task;
 mod yield_now;
 
 /// Spawns a new asynchronous task, returning a
 /// [`JoinHandle`](JoinHandle) for it.
 ///
-/// Spawning a task enables the task to execute concurrently to other tasks. The
+/// Spawning a task enables the task to execute concurrently with respect to tasks. The
 /// spawned task will execute on the current thread.
 ///
 /// There is no guarantee that a spawned task will execute to completion.
@@ -40,22 +40,22 @@ where
     current_unwrap("spawn").spawn(future)
 }
 /// Returns the task id for the currently running task. The task id
-/// is guaranteed to be a unique identifier for the current task.
-/// They may be reused after a task is driven to completion. Task ids
-/// are not guaranteed to be unique across runtimes. This means that if
-/// multiple osiris runtimes are spinned up in separate threads, their task
-/// identifiers will not be unique.
+/// is guaranteed to be a unique identifier. They may be reused after
+/// a task is driven to completion. Task ids are not guaranteed to be
+/// unique across runtimes. This means that if multiple osiris runtimes
+/// are spinned up in separate threads, their task identifiers will not
+/// be unique.
 ///
 /// # Example
 ///
 /// ```rust
-/// use osiris::task::task_id;
+/// use osiris::task;
 /// use osiris::spawn;
 ///
 /// # osiris::block_on(async {
-/// println!("main task, id: {}", task_id());
+/// println!("main task, id: {}", task::id());
 /// spawn(async {
-///     println!("spawned task, id: {}", task_id());
+///     println!("spawned task, id: {}", task::id());
 /// }).await;
 /// # });
 /// ```
@@ -63,7 +63,7 @@ where
 /// # Panics
 /// Panics if called from the **outside** of an osiris async task.
 #[track_caller]
-pub fn task_id() -> usize {
+pub fn id() -> usize {
     crate::runtime::TASK_ID
         .with(|task_id| task_id.clone())
         .get()
@@ -72,14 +72,13 @@ pub fn task_id() -> usize {
 
 /// Aborts from the current task abnormally.
 /// Note that attempting to join a cancelled task will panic.
-///
+/// As a result, calling this function may cause the parent task to panic.
 pub async fn abort() -> ! {
     current_unwrap("task::exit()")
-        .0
         .executor
         .aborted
         .borrow_mut()
-        .push_back(task_id());
+        .push_back(id());
     std::future::pending().await
 }
 
