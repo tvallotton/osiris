@@ -1,11 +1,15 @@
 use crate::runtime::current_unwrap;
-
-pub use join_handle::JoinHandle;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
+
+pub use join_handle::JoinHandle;
+pub use yield_now::yield_now;
+
 mod join_handle;
+mod yield_now;
+
 /// Spawns a new asynchronous task, returning a
 /// [`JoinHandle`](JoinHandle) for it.
 ///
