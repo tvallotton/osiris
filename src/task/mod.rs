@@ -1,16 +1,16 @@
 use crate::runtime::current_unwrap;
+
+pub use join_handle::JoinHandle;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
-
-pub use join_handle::JoinHandle;
 mod join_handle;
 /// Spawns a new asynchronous task, returning a
 /// [`JoinHandle`](JoinHandle) for it.
 ///
-/// Spawning a task enables the task to execute concurrently with respect to tasks. The
-/// spawned task will execute on the current thread.
+/// Spawning a task enables the future to be executed concurrently with respect to other tasks.
+/// The spawned task will execute on the current thread.
 ///
 /// There is no guarantee that a spawned task will execute to completion.
 /// When a runtime is shutdown, all outstanding tasks are dropped,
@@ -18,7 +18,7 @@ mod join_handle;
 ///
 /// This function must be called from the context of an osiris runtime. Tasks running on
 /// a osiris runtime are always inside its context, but you can also enter the context
-/// using the [`Runtime::enter`](crate::runtime::Runtime::enter()) method.
+/// using the [`Runtime::enter()`](crate::runtime::Runtime::enter) method.
 ///
 /// # Panics
 ///
@@ -75,6 +75,7 @@ pub async fn abort() -> ! {
 }
 
 pub(crate) trait Task {
+    fn task_id(&self) -> usize;
     fn wake_join(&self);
     fn abort(self: Pin<&Self>);
     fn abort_in_place(self: Pin<&Self>);

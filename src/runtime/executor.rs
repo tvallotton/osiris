@@ -37,8 +37,7 @@ impl Executor {
             woken: RefCell::new(UniqueQueue::with_capacity(4096)),
             aborted: RefCell::new(UniqueQueue::with_capacity(4096)),
             main_handle: Cell::new(true),
-            // we initialize it to one because 0 is reserved for the blocked_on task.
-            task_id: Cell::new(1),
+            task_id: Cell::default(),
         }
     }
 
@@ -67,14 +66,19 @@ impl Executor {
         JoinHandle::new(task)
     }
 
+    pub fn task_id(&self) -> usize {
+        let task_id = self.task_id.get();
+        self.task_id.set(task_id.overflowing_add(1).0);
+        task_id
+    }
+
     pub fn spawn<F>(&self, future: F) -> Pin<Rc<dyn Task>>
     where
         F: Future + 'static,
     {
         let mut queue = self.tasks.borrow_mut();
 
-        let task_id = self.task_id.get();
-        self.task_id.set(task_id.overflowing_add(2).0);
+        let task_id = self.task_id();
         let future = <dyn Task>::new(task_id, future);
         queue.insert(task_id, future.clone());
         waker(task_id).wake();

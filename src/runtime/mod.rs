@@ -1,7 +1,6 @@
 use crate::runtime::waker::{main_waker, waker};
 use crate::task::JoinHandle;
 use executor::Executor;
-use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::io;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
@@ -10,21 +9,13 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 pub use config::{Config, Mode};
+pub(crate) use globals::{RUNTIME, TASK_ID};
 
 mod config;
 mod executor;
+mod globals;
 mod unique_queue;
 pub(crate) mod waker;
-
-thread_local! {
-    /// This is the runtime thread local. It determines in which runtime context we are currently in.
-    pub(crate) static RUNTIME: RefCell<Option<Runtime>>= RefCell::new(None);
-}
-
-thread_local! {
-    /// This is the task thread local. It determines which task is currently being executed.
-    pub(crate) static TASK_ID: Cell<Option<usize>> = Cell::new(None);
-}
 
 /// Returns a handle to the currently running [`Runtime`].
 /// # Panics
@@ -35,11 +26,14 @@ pub fn current() -> Option<Runtime> {
     RUNTIME.with(|cell| cell.borrow().clone())
 }
 
+/// Run a future to completion on the current thread.
+/// This function will block the caller until the given future has completed.
 pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
     Runtime::new()?.block_on(f)
 }
 
 #[track_caller]
+#[inline]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
     if let Some(rt) = current() {
         return rt;
@@ -149,7 +143,7 @@ impl Runtime {
         let mut handle = unsafe { executor.block_on_spawn(future) };
 
         // we make sure the main task is awake so it gets executed.
-        waker(0).wake();
+        waker(handle.id()).wake();
         // we also make sure the waker for the JoinHandle gets registered
         // by polling the JoinHandle before polling the main task.
         executor.main_handle.set(true);
@@ -176,7 +170,9 @@ impl Runtime {
             // driver.wake_tasks();
         })
     }
-
+    /// Enters the runtime context. While the guard is in scope
+    /// calls to runtime dependent functions and futures such as
+    /// spawn will resolve to the provided runtime.
     pub fn enter(&self) -> impl Drop + '_ {
         struct Enter<'a>(Option<Runtime>, &'a ());
         impl<'a> Drop for Enter<'a> {

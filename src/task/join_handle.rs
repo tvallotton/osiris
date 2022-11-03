@@ -26,6 +26,10 @@ impl<T> JoinHandle<T> {
     pub fn detach(&mut self) {
         self.detached = true;
     }
+
+    pub fn id(&self) -> usize {
+        self.task.task_id()
+    }
 }
 
 impl<T> JoinHandle<T> {
