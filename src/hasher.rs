@@ -26,6 +26,7 @@ impl Hasher for NoopHasher {
     fn write_usize(&mut self, i: usize) {
         self.0 = i as u64;
     }
+    #[allow(clippy::cast_lossless)]
     fn write_u32(&mut self, i: u32) {
         self.0 = i as u64;
     }

@@ -1,5 +1,4 @@
 use std::future::{poll_fn, Future};
-
 use std::task::Poll;
 
 /// Yields execution back to the runtime.

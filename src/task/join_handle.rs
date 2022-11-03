@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 
 /// A handle to the spawned task. By default the task will be cancelled
 /// when the join handle gets dropped. In order to detach on drop the
-/// (JoinHandle::detach)[`.detach()`] method should be called.
+/// [`.detach()`](JoinHandle::detach) method should be called.
 ///
 /// # Panics
 /// Awating a task will panic if the awaited task panicked.
@@ -27,6 +27,7 @@ impl<T> JoinHandle<T> {
         self.detached = true;
     }
 
+    #[must_use]
     pub fn id(&self) -> usize {
         self.task.task_id()
     }

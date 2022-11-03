@@ -59,9 +59,10 @@ where
 /// # Panics
 /// Panics if called from the **outside** of an osiris async task.
 #[track_caller]
+#[must_use]
 pub fn id() -> usize {
     crate::runtime::TASK_ID
-        .with(|task_id| task_id.clone())
+        .with(Clone::clone)
         .get()
         .expect("called `task_id()` from the outside of a task context.")
 }

@@ -5,7 +5,7 @@ use std::task::{RawWaker, RawWakerVTable, Waker};
 /// in a way that doesn't make miri mad
 fn int_to_ptr(n: usize) -> *const () {
     let p: *const u8 = core::ptr::null();
-    p.wrapping_add(n) as *const ()
+    p.wrapping_add(n).cast()
 }
 
 /// creates a waker for a task

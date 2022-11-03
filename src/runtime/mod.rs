@@ -22,12 +22,20 @@ pub(crate) mod waker;
 /// This will panic if called outside the context of a osiris runtime.
 /// It is ok to call this function from a spawned task or from a [blocked on](block_on) future.
 #[track_caller]
+#[must_use]
 pub fn current() -> Option<Runtime> {
     RUNTIME.with(|cell| cell.borrow().clone())
 }
 
 /// Run a future to completion on the current thread.
 /// This function will block the caller until the given future has completed.
+///
+/// # Errors
+/// Errors if the io-ring could not be allocated.
+///  
+/// # Panics
+/// Panics if called from the inside of another osiris runtime.
+/// Runtimes cannot be nested.
 pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
     Runtime::new()?.block_on(f)
 }
@@ -52,13 +60,17 @@ impl Runtime {
     /// Creates a new osiris runtime with the default configuration values.
     /// For more information on the default configuration, check out the [`Config`].
     /// struct.
+    ///
+    /// # Errors
+    /// This function errors if the io-ring could not be allocated.
+    ///
     pub fn new() -> io::Result<Runtime> {
         let config = Config::default();
         let executor = Rc::new(Executor::new());
         let rt = Runtime { config, executor };
         Ok(rt)
     }
-    /// Spawns a new task onto the runtime returning a JoinHandle for that task.    
+    /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
     where
         F: Future + 'static,
@@ -82,6 +94,8 @@ impl Runtime {
     /// This function panics if the blocked on future panics.
     /// Panics on children tasks are catched.
     ///
+    /// # Errors
+    /// This function errors if the io-ring coult not be allocated.
     ///
     /// # Examples
     ///
@@ -173,6 +187,7 @@ impl Runtime {
     /// Enters the runtime context. While the guard is in scope
     /// calls to runtime dependent functions and futures such as
     /// spawn will resolve to the provided runtime.
+    #[must_use]
     pub fn enter(&self) -> impl Drop + '_ {
         struct Enter<'a>(Option<Runtime>, &'a ());
         impl<'a> Drop for Enter<'a> {
