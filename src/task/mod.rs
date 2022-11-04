@@ -4,9 +4,11 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
+pub use completion::complete;
 pub use join_handle::JoinHandle;
 pub use yield_now::yield_now;
 
+mod completion;
 mod join_handle;
 mod yield_now;
 
