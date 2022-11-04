@@ -8,8 +8,11 @@ pub use completion::complete;
 pub use join_handle::JoinHandle;
 pub use yield_now::yield_now;
 
+use self::raw_task::RawTask;
+
 mod completion;
 mod join_handle;
+mod raw_task;
 mod yield_now;
 
 /// Spawns a new asynchronous task, returning a
@@ -91,7 +94,7 @@ pub(crate) trait Task {
 }
 
 impl dyn Task {
-    pub(crate) fn new<F: Future + 'static>(_task_id: usize, _fut: F) -> Pin<Rc<dyn Task>> {
-        todo!()
+    pub(crate) fn new<F: Future + 'static>(task_id: usize, fut: F) -> Pin<Rc<dyn Task>> {
+        Rc::pin(RawTask::new(task_id, fut))
     }
 }
