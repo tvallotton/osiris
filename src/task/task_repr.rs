@@ -1,20 +1,20 @@
-use crate::runtime::current_unwrap;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::hint::unreachable_unchecked;
-use std::mem::{replace, transmute};
+use std::marker::PhantomPinned;
+use std::mem::replace;
 use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 
-use super::Task;
+use super::RawTask;
 
-pub(crate) struct RawTask<F: Future> {
+pub(crate) struct TaskRepr<F: Future> {
     /// Even though strictly speaking cells do not pin project,
     /// we will consider the contents of this cell pinned.
     payload: RefCell<Payload<F>>,
     /// we store here the waker for the JoinHandle.
     pub join_waker: Cell<Option<Waker>>,
-    pub task_id: usize,
+    _ph: PhantomPinned,
 }
 
 pub(crate) enum Payload<F: Future> {
@@ -24,39 +24,26 @@ pub(crate) enum Payload<F: Future> {
     Ready { output: F::Output },
 }
 
-impl<F: Future> RawTask<F> {
-    pub fn new(task_id: usize, fut: F) -> Self {
-        RawTask {
-            task_id,
+impl<F: Future> TaskRepr<F> {
+    pub fn new(fut: F) -> Self {
+        TaskRepr {
             join_waker: Cell::default(),
             payload: RefCell::new(Payload::Pending { fut }),
+            _ph: PhantomPinned,
         }
     }
 }
 
-impl<F: Future> RawTask<F> {
+impl<F: Future> TaskRepr<F> {
     fn insert_waker(&self, cx: &mut Context) {
         self.join_waker.set(Some(cx.waker().clone()));
     }
 }
 
-impl<F: Future> Task for RawTask<F>
+impl<F: Future> RawTask for TaskRepr<F>
 where
     F::Output: 'static,
 {
-    /// Aborts a task immediately. Beware not to call this from
-    /// the inside a poll function, which might trigger a panic
-    /// if a task attempts to abort itself.
-    fn abort_in_place(self: Pin<&Self>) {
-        let mut payload = self.payload.borrow_mut();
-        if let Payload::Pending { .. } = &*payload {
-            *payload = Payload::Aborted;
-        }
-        self.wake_join();
-    }
-    fn task_id(&self) -> usize {
-        self.task_id
-    }
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()> {
         let mut payload = self.payload.borrow_mut();
         if let Payload::Pending { fut } = &mut *payload {
@@ -64,7 +51,7 @@ where
             // we can safely project the pin because the
             // payload future is never moved.
             // Also, safe code can't move the future because
-            // RawTask is !Unpin, and its contents are private,
+            // `TaskRepr` is !Unpin, and its contents are private,
             // so it cannot be moved by safe code.
             let fut = unsafe { Pin::new_unchecked(fut) };
 
@@ -82,15 +69,6 @@ where
         }
     }
 
-    /// This function will schedule the task for cancellation.
-    fn abort(self: Pin<&Self>) {
-        current_unwrap("abort")
-            .executor
-            .aborted
-            .borrow_mut()
-            .push_back(self.task_id);
-    }
-
     fn wake_join(&self) {
         if let Some(waker) = self.join_waker.take() {
             waker.wake();
@@ -99,7 +77,8 @@ where
 
     /// # Safety
     /// The caller must uphold that the pointer `out: *mut ()` points to a valid
-    /// `Poll<F::Output>`, where `F` is the spawned future of the associated task.
+    /// memory location of the type `Poll<F::Output>`, where `F` is the spawned
+    /// future of the associated task.
     #[track_caller]
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, out: *mut ()) {
         self.insert_waker(cx);
@@ -112,12 +91,12 @@ where
 
             match payload {
                 Payload::Ready { output } => {
+                    let out: *mut Poll<F::Output> = out.cast();
                     // Safety:
                     // the caller must uphold that the transmuted type is correct.
-                    let out: &mut Poll<F::Output> = unsafe {
-                        &mut *(out as *mut std::task::Poll<<F as std::future::Future>::Output>)
-                    };
-                    *out = Poll::Ready(output);
+                    unsafe {
+                        *out = Poll::Ready(output);
+                    }
                 }
                 Payload::Taken => {
                     panic!("polled a JoinHandle future after returning Poll::Ready(..).");
@@ -129,5 +108,16 @@ where
                 Payload::Pending { .. } => unsafe { unreachable_unchecked() },
             }
         }
+    }
+
+    /// Aborts a task immediately. Beware not to call this from
+    /// the inside a poll function, which might trigger a panic
+    /// if a task attempts to abort itself.
+    fn abort_in_place(self: Pin<&Self>) {
+        let mut payload = self.payload.borrow_mut();
+        if let Payload::Pending { .. } = &*payload {
+            *payload = Payload::Aborted;
+        }
+        self.wake_join();
     }
 }

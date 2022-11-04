@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::future::{poll_fn, Future};
 use std::mem::transmute;
 use std::pin::Pin;
-use std::rc::Rc;
 use std::task::Context;
 
 pub(crate) struct Executor {
@@ -27,7 +26,7 @@ pub(crate) struct Executor {
     pub(crate) task_id: Cell<usize>,
 }
 
-type Tasks = HashMap<usize, Pin<Rc<dyn Task>>, NoopHasher>;
+type Tasks = HashMap<usize, Task, NoopHasher>;
 
 impl Executor {
     /// Creates a new executor
@@ -59,8 +58,8 @@ impl Executor {
             let future: Pin<&mut F> = unsafe { transmute(ptr) };
             future.poll(cx)
         });
-
-        let task = <dyn Task>::new(0, future);
+        let task_id = self.task_id();
+        let task = Task::new(task_id, future);
         self.tasks.borrow_mut().insert(0, task.clone());
 
         JoinHandle::new(task)
@@ -72,14 +71,14 @@ impl Executor {
         task_id
     }
 
-    pub fn spawn<F>(&self, future: F) -> Pin<Rc<dyn Task>>
+    pub fn spawn<F>(&self, future: F) -> Task
     where
         F: Future + 'static,
     {
         let mut queue = self.tasks.borrow_mut();
 
         let task_id = self.task_id();
-        let future = <dyn Task>::new(task_id, future);
+        let future = Task::new(task_id, future);
         queue.insert(task_id, future.clone());
         waker(task_id).wake();
         future
@@ -107,7 +106,7 @@ impl Executor {
 
                     let waker = waker(task_id);
                     let cx = &mut Context::from_waker(&waker);
-                    let poll = task.as_ref().poll(cx);
+                    let poll = task.poll(cx);
 
                     if poll.is_pending() {
                         // we insert it back into the queue.

@@ -2,7 +2,6 @@ use super::Task;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::rc::Rc;
 use std::task::{Context, Poll};
 
 /// A handle to the spawned task. By default the task will be cancelled
@@ -12,8 +11,7 @@ use std::task::{Context, Poll};
 /// # Panics
 /// Awating a task will panic if the awaited task panicked.
 pub struct JoinHandle<T> {
-    task: Pin<Rc<dyn Task>>,
-    detached: bool,
+    task: Task,
     _t: PhantomData<T>,
 }
 
@@ -24,28 +22,28 @@ impl<T> JoinHandle<T> {
     /// get cancelled when the handle gets dropped.
     #[inline]
     pub fn detach(&mut self) {
-        self.detached = true;
+        self.task.detached = true;
     }
 
     #[must_use]
     pub fn id(&self) -> usize {
-        self.task.task_id()
+        self.task.id()
+    }
+
+    /// This function will schedule the task to be aborted in the next event loop.  
+    /// The task is not guaranteed to be cancelled immediately. It may still be possible
+    /// for the task to be finished before it gets aborted.
+    fn abort(&self) {
+        self.task.abort();
     }
 }
 
 impl<T> JoinHandle<T> {
-    pub(crate) fn new(task: Pin<Rc<dyn Task>>) -> JoinHandle<T> {
+    pub(crate) fn new(task: Task) -> JoinHandle<T> {
         JoinHandle {
             task,
-            detached: false,
             _t: PhantomData::default(),
         }
-    }
-    /// This function will schedule the task to be aborted in the next event loop.  
-    /// The task is not guaranteed to be cancelled immediately. It may still be possible
-    /// for the task to be finished before it gets aborted.
-    pub fn abort(self) {
-        self.task.as_ref().abort();
     }
 }
 
@@ -58,15 +56,7 @@ impl<T> Future for JoinHandle<T> {
         // The output type is the same as the JoinHandle since a
         // JoinHandle<T> cannot be constructed from a task of a
         // type different from T.
-        unsafe { self.task.as_ref().poll_join(cx, ptr) };
+        unsafe { self.task.raw.as_ref().poll_join(cx, ptr) };
         output
-    }
-}
-
-impl<T> Drop for JoinHandle<T> {
-    fn drop(&mut self) {
-        if !self.detached {
-            self.task.as_ref().abort();
-        }
     }
 }

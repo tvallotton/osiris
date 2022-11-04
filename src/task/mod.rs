@@ -8,11 +8,11 @@ pub use completion::complete;
 pub use join_handle::JoinHandle;
 pub use yield_now::yield_now;
 
-use self::raw_task::RawTask;
+use self::task_repr::TaskRepr;
 
 mod completion;
 mod join_handle;
-mod raw_task;
+mod task_repr;
 mod yield_now;
 
 /// Spawns a new asynchronous task, returning a
@@ -83,18 +83,56 @@ pub async fn abort() -> ! {
         .push_back(id());
     std::future::pending().await
 }
+#[derive(Clone)]
+pub(crate) struct Task {
+    raw: Pin<Rc<dyn RawTask>>,
+    id: usize,
+    detached: bool,
+}
 
-pub(crate) trait Task {
-    fn task_id(&self) -> usize;
+impl Task {
+    pub(crate) fn new<F: Future + 'static>(id: usize, fut: F) -> Task {
+        Task {
+            raw: Rc::pin(TaskRepr::new(fut)),
+            id,
+            detached: false,
+        }
+    }
+
+    pub(crate) fn id(&self) -> usize {
+        self.id
+    }
+
+    pub(crate) fn poll(&self, cx: &mut Context) -> Poll<()> {
+        self.raw.as_ref().poll(cx)
+    }
+
+    /// Aborts a task immediately. Beware not to call this from
+    /// the inside a poll function, which might trigger a panic
+    /// if a task attempts to abort itself.
+    fn abort_in_place(&self) {
+        self.raw.as_ref().abort_in_place();
+    }
+
+    /// Schedules the task to be aborted by the end of the event cycle.
+    fn abort(&self) {
+        current_unwrap("JoinHandle::abort")
+            .executor
+            .aborted
+            .borrow_mut()
+            .push_back(self.id);
+    }
+}
+
+pub(crate) trait RawTask {
     fn wake_join(&self);
-    fn abort(self: Pin<&Self>);
     fn abort_in_place(self: Pin<&Self>);
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()>;
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, ptr: *mut ());
 }
 
-impl dyn Task {
-    pub(crate) fn new<F: Future + 'static>(task_id: usize, fut: F) -> Pin<Rc<dyn Task>> {
-        Rc::pin(RawTask::new(task_id, fut))
+impl Drop for Task {
+    fn drop(&mut self) {
+        if self.detached {}
     }
 }
