@@ -115,8 +115,7 @@ where
                     // Safety:
                     // the caller must uphold that the transmuted type is correct.
                     let out: &mut Poll<F::Output> = unsafe {
-                        transmute(out)
-                        // &mut *(out as *mut std::task::Poll<<F as std::future::Future>::Output>)
+                        &mut *(out as *mut std::task::Poll<<F as std::future::Future>::Output>)
                     };
                     *out = Poll::Ready(output);
                 }
