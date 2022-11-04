@@ -46,27 +46,25 @@ where
 {
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()> {
         let mut payload = self.payload.borrow_mut();
-        if let Payload::Pending { fut } = &mut *payload {
-            // SAFETY:
-            // we can safely project the pin because the
-            // payload future is never moved.
-            // Also, safe code can't move the future because
-            // `TaskRepr` is !Unpin, and its contents are private,
-            // so it cannot be moved by safe code.
-            let fut = unsafe { Pin::new_unchecked(fut) };
-
-            if let Poll::Ready(output) = fut.poll(cx) {
-                *payload = Payload::Ready { output };
-                // let's wake the joining task.
-                self.wake_join();
-                Poll::Ready(())
-            } else {
-                Poll::Pending
-            }
-        } else {
+        let Payload::Pending { fut } = &mut *payload else {
             // we return ready so the task can be removed from the queue.
-            Poll::Ready(())
-        }
+            return Poll::Ready(());
+        };
+        // SAFETY:
+        // we can safely project the pin because the
+        // payload future is never moved.
+        // Also, safe code can't move the future because
+        // `TaskRepr` is !Unpin, and its contents are private,
+        // so it cannot be moved by safe code.
+        let fut = unsafe { Pin::new_unchecked(fut) };
+
+        let Poll::Ready(output) = fut.poll(cx) else {
+            return  Poll::Pending;
+        };
+        *payload = Payload::Ready { output };
+        // let's wake the joining task.
+        self.wake_join();
+        Poll::Ready(())
     }
 
     fn wake_join(&self) {

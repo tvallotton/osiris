@@ -43,14 +43,14 @@ impl<F: Future + 'static + Unpin> Future for Completion<F> {
 
 impl<F: Future + 'static + Unpin> Drop for Completion<F> {
     fn drop(&mut self) {
-        if let Some(future) = self.future.take() {
-            let future = future;
-            let future = complete(future);
-            if let Some(rt) = current() {
-                rt.spawn(future);
-            } else {
-                forget(future);
-            }
-        }
+        let Some(future) = self.future.take() else {
+            return;
+        };
+        let future = future;
+        let future = complete(future);
+        let Some(rt) = current() else {
+            return forget(future);
+        };
+        rt.spawn(future);
     }
 }

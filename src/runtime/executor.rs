@@ -94,25 +94,29 @@ impl Executor {
 
             task_id.set(woken.pop_front());
 
-            if let Some(task_id) = task_id.get() {
-                // we drop woken so the task can call `.wake()`.
-                drop(woken);
+            let Some(task_id) = task_id.get() else {
+                continue;
+            };
 
-                let mut tasks = self.tasks.borrow_mut();
+            // we drop woken so the task can call `.wake()`.
+            drop(woken);
 
-                if let Some(task) = tasks.remove(&task_id) {
-                    // we drop tasks so the task can call `spawn`.
-                    drop(tasks);
+            let mut tasks = self.tasks.borrow_mut();
 
-                    let waker = waker(task_id);
-                    let cx = &mut Context::from_waker(&waker);
-                    let poll = task.poll(cx);
+            let Some(task) = tasks.remove(&task_id) else {
+                continue;
+            };
 
-                    if poll.is_pending() {
-                        // we insert it back into the queue.
-                        self.tasks.borrow_mut().insert(task_id, task);
-                    }
-                }
+            // we drop tasks so the task can call `spawn`.
+            drop(tasks);
+
+            let waker = waker(task_id);
+            let cx = &mut Context::from_waker(&waker);
+            let poll = task.poll(cx);
+
+            if poll.is_pending() {
+                // we insert it back into the queue.
+                self.tasks.borrow_mut().insert(task_id, task);
             }
         }
     }
@@ -120,17 +124,18 @@ impl Executor {
     pub fn remove_aborted(&self) {
         loop {
             let mut aborted = self.aborted.borrow_mut();
-            if let Some(task_id) = aborted.pop_front() {
-                let mut tasks = self.tasks.borrow_mut();
-                let task = tasks.remove(&task_id);
-                // we first drop the task queue,
-                // in case the task destructors wants to spawn other futures
-                drop(tasks);
-                // we now drop the aborted queue in case the task destructor
-                // wants to abort another task.
-                drop(aborted);
-                drop(task);
-            }
+            let Some(task_id) = aborted.pop_front() else {
+                break;
+            };
+            let mut tasks = self.tasks.borrow_mut();
+            let task = tasks.remove(&task_id);
+            // we first drop the task queue,
+            // in case the task destructors wants to spawn other futures
+            drop(tasks);
+            // we now drop the aborted queue in case the task destructor
+            // wants to abort another task.
+            drop(aborted);
+            drop(task);
         }
     }
 

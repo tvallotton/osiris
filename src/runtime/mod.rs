@@ -43,10 +43,10 @@ pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
 #[track_caller]
 #[inline]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
-    if let Some(rt) = current() {
-        return rt;
-    }
-    panic!("called `{fun}` from the outside of a runtime context.")
+    let Some(rt) = current() else {
+         panic!("called `{fun}` from the outside of a runtime context.")
+    };
+    rt
 }
 
 /// The osiris local runtime.
