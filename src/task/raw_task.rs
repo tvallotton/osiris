@@ -104,7 +104,7 @@ where
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, out: *mut ()) {
         self.insert_waker(cx);
         // we must be careful not to accidentally move the task here.
-        let ref mut payload = *self.payload.borrow_mut();
+        let payload = &mut *self.payload.borrow_mut();
 
         if !matches!(payload, Payload::Pending { .. }) {
             // we can move anything now that we know the pin ended.
