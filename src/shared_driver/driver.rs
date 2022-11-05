@@ -1,6 +1,5 @@
-use io_uring::squeue::Entry;
 #[cfg(target_os = "linux")]
-use io_uring::IoUring;
+use io_uring::{squeue::Entry, IoUring};
 use std::collections::HashMap;
 use std::io;
 use std::task::Waker;
@@ -20,6 +19,7 @@ pub(crate) struct Driver {
 }
 
 impl Driver {
+    #[allow(unused_variables)]
     pub fn new(config: Config) -> io::Result<Driver> {
         let wakers = {
             let hasher = NoopHasher::default();
