@@ -10,4 +10,5 @@
 
 mod hasher;
 pub mod runtime;
+pub mod shared_driver;
 pub mod task;

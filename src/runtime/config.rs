@@ -1,3 +1,6 @@
+#[cfg(target_os = "linux")]
+use io_uring::IoUring;
+
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Config {
@@ -66,4 +69,13 @@ impl Default for Config {
 
 impl Config {
     pub const DEFAULT_WAKERS: usize = 2048;
+
+    #[cfg(target_os = "linux")]
+    pub fn io_uring(self) -> std::io::Result<IoUring> {
+        let mut builder = IoUring::builder();
+        if let Mode::Polling { idle_timeout } = self.mode {
+            builder.setup_sqpoll(idle_timeout);
+        }
+        builder.build(self.ring_entries)
+    }
 }
