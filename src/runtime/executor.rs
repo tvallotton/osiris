@@ -101,14 +101,10 @@ impl Executor {
             // we drop woken so the task can call `.wake()`.
             drop(woken);
 
-            let mut tasks = self.tasks.borrow_mut();
-
-            let Some(task) = tasks.remove(&task_id) else {
+            // we remove the task from the task map
+            let Some(task) = self.tasks.borrow_mut().remove(&task_id) else {
                 continue;
             };
-
-            // we drop tasks so the task can call `spawn`.
-            drop(tasks);
 
             let waker = waker(task_id);
             let cx = &mut Context::from_waker(&waker);
@@ -128,14 +124,16 @@ impl Executor {
                 break;
             };
             let mut tasks = self.tasks.borrow_mut();
-            let task = tasks.remove(&task_id);
+            let Some(task) = tasks.remove(&task_id) else {
+                return;
+            };
             // we first drop the task queue,
             // in case the task destructors wants to spawn other futures
             drop(tasks);
             // we now drop the aborted queue in case the task destructor
             // wants to abort another task.
             drop(aborted);
-            drop(task);
+            task.abort_in_place();
         }
     }
 

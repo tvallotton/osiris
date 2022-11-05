@@ -14,7 +14,7 @@ use std::task::Poll;
 ///
 /// This function may not yield all the way up to the executor if there are any
 /// special combinators above it in the call stack. For example, if a
-/// [`select!`] has another branch complete during the same poll as the
+/// `select!` has another branch complete during the same poll as the
 /// `yield_now()`, then the yield is not propagated all the way up to the
 /// runtime.
 ///

@@ -30,7 +30,6 @@ mod yield_now;
 /// using the [`Runtime::enter()`](crate::runtime::Runtime::enter) method.
 ///
 /// # Panics
-///
 /// Panics if called from **outside** of an osiris runtime.
 ///
 #[track_caller]
@@ -110,7 +109,7 @@ impl Task {
     /// Aborts a task immediately. Beware not to call this from
     /// the inside a poll function, which might trigger a panic
     /// if a task attempts to abort itself.
-    fn abort_in_place(&self) {
+    pub(crate) fn abort_in_place(&self) {
         self.raw.as_ref().abort_in_place();
     }
 

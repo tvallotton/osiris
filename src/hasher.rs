@@ -18,7 +18,7 @@ impl BuildHasher for NoopHasher {
 }
 impl Hasher for NoopHasher {
     fn finish(&self) -> u64 {
-        self.0 as u64
+        self.0
     }
     fn write(&mut self, _: &[u8]) {
         unimplemented!()
@@ -31,6 +31,6 @@ impl Hasher for NoopHasher {
         self.0 = i as u64;
     }
     fn write_u64(&mut self, i: u64) {
-        self.0 = i as u64;
+        self.0 = i;
     }
 }

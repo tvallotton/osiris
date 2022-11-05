@@ -12,9 +12,6 @@ thread_local! {
 }
 
 /// Returns a handle to the currently running [`Runtime`].
-/// # Panics
-/// This will panic if called outside the context of a osiris runtime.
-/// It is ok to call this function from a spawned task or from a [blocked on](block_on) future.
 #[track_caller]
 pub fn current() -> Option<Runtime> {
     RUNTIME.with(|cell| cell.borrow().clone())

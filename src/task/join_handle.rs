@@ -33,7 +33,7 @@ impl<T> JoinHandle<T> {
     /// This function will schedule the task to be aborted in the next event loop.  
     /// The task is not guaranteed to be cancelled immediately. It may still be possible
     /// for the task to be finished before it gets aborted.
-    fn abort(&self) {
+    pub fn abort(&self) {
         self.task.abort();
     }
 }
