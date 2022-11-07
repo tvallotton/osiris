@@ -49,8 +49,9 @@ impl Driver {
         self.io_uring.submit_and_wait(1)?;
         Ok(())
     }
+    // TODO
     pub fn wake_tasks(&mut self) {
-        todo!()
+        let _ = self;
     }
 
     /// Attempts to push an entry into the queue.

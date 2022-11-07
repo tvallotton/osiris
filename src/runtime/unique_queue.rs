@@ -1,19 +1,18 @@
 use crate::hasher::NoopHasher;
 use std::collections::HashMap;
-use std::hash::Hash;
 
 #[derive(Debug)]
-pub(crate) struct UniqueQueue<T> {
-    first: T,
-    last: T,
-    map: HashMap<T, T, NoopHasher>,
+pub(crate) struct UniqueQueue {
+    first: usize,
+    last: usize,
+    map: HashMap<usize, usize, NoopHasher>,
 }
 
-impl<T: Eq + Copy + Hash + Default + Ord> UniqueQueue<T> {
+impl UniqueQueue {
     pub fn with_capacity(capacity: usize) -> Self {
         UniqueQueue {
-            first: T::default(),
-            last: T::default(),
+            first: usize::MAX,
+            last: usize::MAX,
             map: HashMap::with_capacity_and_hasher(capacity, NoopHasher::new()),
         }
     }
@@ -22,14 +21,26 @@ impl<T: Eq + Copy + Hash + Default + Ord> UniqueQueue<T> {
         self.map.len()
     }
 
-    pub fn push_back(&mut self, item: T) {
+    pub fn push_back(&mut self, item: usize) {
         self.map.insert(self.last, item);
         self.last = item;
     }
 
-    pub fn pop_front(&mut self) -> Option<T> {
+    pub fn pop_front(&mut self) -> Option<usize> {
         let (_, first) = self.map.remove_entry(&self.first)?;
         self.first = first;
         Some(first)
     }
+}
+
+#[test]
+fn smoke_test() {
+    let mut queue = UniqueQueue::with_capacity(8);
+
+    queue.push_back(0);
+    dbg!(&queue);
+    queue.push_back(1);
+    dbg!(&queue);
+    assert_eq!(queue.pop_front(), Some(0));
+    assert_eq!(queue.pop_front(), Some(1));
 }

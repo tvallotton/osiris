@@ -1,4 +1,5 @@
 use crate::runtime::current_unwrap;
+use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -71,9 +72,9 @@ pub fn id() -> usize {
         .expect("called `task_id()` from the outside of a task context.")
 }
 
-/// Aborts from the current task abnormally.
-/// Note that attempting to join a cancelled task will panic.
-/// As a result, calling this function may cause the parent task to panic.
+/// Aborts from the current task abnormally. Note that calling
+/// this function will cause the parent task to panic unless the
+/// task is detached.
 pub async fn abort() -> ! {
     current_unwrap("task::exit()")
         .executor
@@ -122,16 +123,29 @@ impl Task {
             .push_back(self.id);
     }
 }
+impl Debug for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Task")
+            .field("id", &self.id)
+            .field("detached", &self.detached)
+            .field("status", &self.raw.status())
+            .finish()
+    }
+}
 
 pub(crate) trait RawTask {
     fn wake_join(&self);
     fn abort_in_place(self: Pin<&Self>);
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()>;
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, ptr: *mut ());
+    fn status(&self) -> &'static str;
 }
 
 impl Drop for Task {
     fn drop(&mut self) {
-        if self.detached {}
+        if !self.detached {
+            return self.abort();
+        }
+        self.raw.wake_join();
     }
 }

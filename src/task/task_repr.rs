@@ -68,9 +68,11 @@ where
     }
 
     fn wake_join(&self) {
-        if let Some(waker) = self.join_waker.take() {
-            waker.wake();
-        }
+        let Some(waker) = self.join_waker.take() else {
+            return;
+        };
+        waker.wake_by_ref();
+        self.join_waker.set(Some(waker));
     }
 
     /// # Safety
@@ -82,7 +84,10 @@ where
         self.insert_waker(cx);
         // we must be careful not to accidentally move the task here.
         let payload = &mut *self.payload.borrow_mut();
-
+        dbg!(matches!(payload, Payload::Pending { .. }));
+        dbg!(matches!(payload, Payload::Aborted));
+        dbg!(matches!(payload, Payload::Ready { .. }));
+        dbg!(matches!(payload, Payload::Taken));
         if !matches!(payload, Payload::Pending { .. }) {
             // we can move anything now that we know the pin ended.
             let payload = replace(payload, Payload::Taken);
@@ -117,5 +122,14 @@ where
             *payload = Payload::Aborted;
         }
         self.wake_join();
+    }
+
+    fn status(&self) -> &'static str {
+        match &*self.payload.borrow() {
+            Payload::Aborted => "aborted",
+            Payload::Pending { .. } => "pending",
+            Payload::Ready { .. } => "ready",
+            Payload::Taken => "taken",
+        }
     }
 }

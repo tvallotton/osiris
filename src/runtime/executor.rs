@@ -15,9 +15,9 @@ pub(crate) struct Executor {
     pub(crate) tasks: RefCell<Tasks>,
     /// This is queue stores all woken tasks in the order they were
     /// woken.
-    pub(crate) woken: RefCell<UniqueQueue<usize>>,
+    pub(crate) woken: RefCell<UniqueQueue>,
     /// This queue stores the ids for all aborted tasks.
-    pub(crate) aborted: RefCell<UniqueQueue<usize>>,
+    pub(crate) aborted: RefCell<UniqueQueue>,
     /// This bool states wheather the main task's JoinHandle has been woken.
     /// This will be true when the main task has finished.
     pub(crate) main_handle: Cell<bool>,
@@ -105,6 +105,7 @@ impl Executor {
             let Some(task) = self.tasks.borrow_mut().remove(&task_id) else {
                 continue;
             };
+            dbg!(&task);
 
             let waker = waker(task_id);
             let cx = &mut Context::from_waker(&waker);

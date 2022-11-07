@@ -1,4 +1,5 @@
 use crate::runtime::waker::{main_waker, waker};
+use crate::shared_driver::SharedDriver;
 use crate::task::JoinHandle;
 use executor::Executor;
 use std::future::Future;
@@ -7,6 +8,7 @@ use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 pub use config::{Config, Mode};
 pub(crate) use globals::{RUNTIME, TASK_ID};
@@ -54,6 +56,7 @@ pub(crate) fn current_unwrap(fun: &str) -> Runtime {
 pub struct Runtime {
     pub(crate) config: Config,
     pub(crate) executor: Rc<Executor>,
+    pub(crate) driver: SharedDriver,
 }
 
 impl Runtime {
@@ -67,7 +70,12 @@ impl Runtime {
     pub fn new() -> io::Result<Runtime> {
         let config = Config::default();
         let executor = Rc::new(Executor::new());
-        let rt = Runtime { config, executor };
+        let driver = SharedDriver::new(config.clone())?;
+        let rt = Runtime {
+            config,
+            executor,
+            driver,
+        };
         Ok(rt)
     }
     /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
@@ -120,68 +128,76 @@ impl Runtime {
     where
         F: Future,
     {
-        loop {
-            // SAFETY: The future is never moved
-            let future = unsafe { Pin::new_unchecked(&mut future) };
+        let msg = "called `block_on` from the inside of another osiris runtime.";
+        assert!(current().is_none(), "{}", msg);
 
-            let event_loop = AssertUnwindSafe(move || self.event_loop(future));
-            match catch_unwind(event_loop) {
-                Ok(result) => return result,
-                Err(error) => {
-                    let queue = self.executor.tasks.borrow();
-                    if queue.contains_key(&0) {
-                        continue;
-                    }
-                    resume_unwind(error);
-                }
-            }
-        }
-    }
-    /// This is the main loop
-    fn event_loop<F: Future>(&self, future: Pin<&mut F>) -> io::Result<F::Output> {
-        assert!(
-            current().is_none(),
-            "called `block_on` from the inside of another osiris runtime."
-        );
         // we enter the runtime context so functions like `spawn` are
         // available.
-        let _h = self.enter();
+        let h = self.enter();
 
-        let Runtime { executor, config } = self;
+        // SAFETY: The future is never moved
+        let future = unsafe { Pin::new_unchecked(&mut future) };
 
         // # Safety:
         // This operation is safe because the task will not outlive the function scope.
         // This is also true for the case of a panic. If the main task panicked on `poll`,
         // it will not have been returned to the task queue, and will have been dropped in
         // the call to `Executor::poll`.
-        let mut handle = unsafe { executor.block_on_spawn(future) };
+        let handle = &mut unsafe { self.executor.block_on_spawn(future) };
 
-        // we make sure the main task is awake so it gets executed.
+        // we make sure the main task is woken so it gets executed
         waker(handle.id()).wake();
+
         // we also make sure the waker for the JoinHandle gets registered
         // by polling the JoinHandle before polling the main task.
-        executor.main_handle.set(true);
+        self.executor.main_handle.set(true);
+
+        loop {
+            let event_loop = AssertUnwindSafe(|| self.event_loop(handle));
+            match catch_unwind(event_loop) {
+                Ok(result) => return result,
+                Err(error) => {
+                    let queue = self.executor.tasks.borrow();
+                    // if the main task panicked we resume_unwind.
+                    // otherwise we continue we catch it.
+                    if !queue.contains_key(&handle.id()) {
+                        drop(h);
+                        resume_unwind(error);
+                    }
+                }
+            }
+        }
+    }
+    /// This is the main loop
+    fn event_loop<T>(&self, handle: &mut JoinHandle<T>) -> io::Result<T> {
+        let Runtime {
+            executor,
+            config,
+            driver,
+        } = self;
 
         let handel_waker = main_waker();
         let handle_cx = &mut Context::from_waker(&handel_waker);
 
         TASK_ID.with(|task_id| loop {
+            std::thread::sleep(Duration::from_millis(500));
             // we must poll the JoinHandle before polling the executor
-            let handle = Pin::new(&mut handle);
+            let handle = Pin::new(&mut *handle);
             if executor.main_handle.get() {
                 if let Poll::Ready(out) = handle.poll(handle_cx) {
                     return Ok(out);
                 }
+                executor.main_handle.set(false);
             }
             executor.poll(config.event_interval, task_id);
             executor.remove_aborted();
-            // driver.wake_tasks();
-            // if executor.is_woken() {
-            //     driver.submit_and_yield()?;
-            // } else {
-            //     driver.submit_and_wait()?;
-            // }
-            // driver.wake_tasks();
+            driver.wake_tasks();
+            if executor.is_woken() {
+                driver.submit_and_yield()?;
+            } else {
+                driver.submit_and_wait()?;
+            }
+            driver.wake_tasks();
         })
     }
     /// Enters the runtime context. While the guard is in scope

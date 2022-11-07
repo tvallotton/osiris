@@ -1,3 +1,5 @@
+#![feature(async_fn_in_trait)]
+#![allow(incomplete_features)]
 #![deny(warnings)]
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
