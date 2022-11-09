@@ -1,4 +1,5 @@
 use crate::runtime::current_unwrap;
+use std::cell::BorrowMutError;
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
@@ -107,15 +108,12 @@ impl Task {
         self.raw.as_ref().poll(cx)
     }
 
-    /// Aborts a task immediately. Beware not to call this from
-    /// the inside a poll function, which might trigger a panic
-    /// if a task attempts to abort itself.
-    pub(crate) fn abort_in_place(&self) {
-        self.raw.as_ref().abort_in_place();
-    }
-
-    /// Schedules the task to be aborted by the end of the event cycle.
-    fn abort(&self) {
+    /// Schedules the task to be aborted. Tasks are not guaranteed to be aborted
+    /// immediately, and their cancellation might be delayed until the next event cycle.
+    pub fn abort(&self) {
+        let Err(_) = self.raw.as_ref().try_abort() else {
+            return;
+        };
         current_unwrap("JoinHandle::abort")
             .executor
             .aborted
@@ -135,7 +133,7 @@ impl Debug for Task {
 
 pub(crate) trait RawTask {
     fn wake_join(&self);
-    fn abort_in_place(self: Pin<&Self>);
+    fn try_abort(self: Pin<&Self>) -> Result<(), BorrowMutError>;
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()>;
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, ptr: *mut ());
     fn status(&self) -> &'static str;
@@ -143,9 +141,9 @@ pub(crate) trait RawTask {
 
 impl Drop for Task {
     fn drop(&mut self) {
-        if !self.detached {
-            return self.abort();
-        }
         self.raw.wake_join();
+        if !self.detached {
+            self.abort();
+        }
     }
 }

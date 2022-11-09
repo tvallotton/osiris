@@ -43,7 +43,7 @@ impl Executor {
     /// # Safety
     /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned
     /// task. Otherwise, a use after free will occur.    
-    pub unsafe fn block_on_spawn<F>(&self, future: Pin<&mut F>) -> JoinHandle<F::Output>
+    pub unsafe fn spawn_unchecked<F>(&self, future: Pin<&mut F>) -> JoinHandle<F::Output>
     where
         F: Future,
     {
@@ -105,7 +105,6 @@ impl Executor {
             let Some(task) = self.tasks.borrow_mut().remove(&task_id) else {
                 continue;
             };
-            dbg!(&task);
 
             let waker = waker(task_id);
             let cx = &mut Context::from_waker(&waker);
@@ -125,16 +124,18 @@ impl Executor {
                 break;
             };
             let mut tasks = self.tasks.borrow_mut();
+            dbg!(&tasks);
             let Some(task) = tasks.remove(&task_id) else {
                 return;
             };
+
             // we first drop the task queue,
             // in case the task destructors wants to spawn other futures
             drop(tasks);
             // we now drop the aborted queue in case the task destructor
             // wants to abort another task.
             drop(aborted);
-            task.abort_in_place();
+            task.abort();
         }
     }
 

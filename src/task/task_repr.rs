@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::{BorrowMutError, Cell, RefCell};
 use std::future::Future;
 use std::hint::unreachable_unchecked;
 use std::marker::PhantomPinned;
@@ -84,10 +84,6 @@ where
         self.insert_waker(cx);
         // we must be careful not to accidentally move the task here.
         let payload = &mut *self.payload.borrow_mut();
-        dbg!(matches!(payload, Payload::Pending { .. }));
-        dbg!(matches!(payload, Payload::Aborted));
-        dbg!(matches!(payload, Payload::Ready { .. }));
-        dbg!(matches!(payload, Payload::Taken));
         if !matches!(payload, Payload::Pending { .. }) {
             // we can move anything now that we know the pin ended.
             let payload = replace(payload, Payload::Taken);
@@ -113,15 +109,15 @@ where
         }
     }
 
-    /// Aborts a task immediately. Beware not to call this from
-    /// the inside a poll function, which might trigger a panic
-    /// if a task attempts to abort itself.
-    fn abort_in_place(self: Pin<&Self>) {
-        let mut payload = self.payload.borrow_mut();
+    /// Aborts a task immediately. It may fail if the task
+    /// is already borrowed, possibly if it is being polled.
+    fn try_abort(self: Pin<&Self>) -> Result<(), BorrowMutError> {
+        let mut payload = self.payload.try_borrow_mut()?;
         if let Payload::Pending { .. } = &*payload {
             *payload = Payload::Aborted;
         }
         self.wake_join();
+        Ok(())
     }
 
     fn status(&self) -> &'static str {

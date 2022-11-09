@@ -1,5 +1,15 @@
+use std::panic::catch_unwind;
+
 use osiris::runtime::block_on;
 use osiris::task::{spawn, yield_now};
+
+fn install() {
+    #[cfg(not(miri))]
+    {
+        dotenv::dotenv();
+        color_eyre::install();
+    }
+}
 
 /// This tests makes sure a task can spawn other tasks on abort
 #[test]
@@ -8,8 +18,10 @@ fn spawn_on_abort() {
 
     impl Drop for SpawnOnDrop {
         fn drop(&mut self) {
+            println!("ABORTING");
             spawn(async {
                 yield_now().await;
+                println!("ABORTED");
             });
         }
     }
@@ -28,15 +40,48 @@ fn spawn_on_abort() {
     .unwrap();
 }
 
+// this function tests that panics are propagated across join handles.
 #[test]
-fn child_panic_is_catched() {
+fn propagate_panic() {
+    install();
+    let result = catch_unwind(|| {
+        block_on(async {
+            spawn(async {
+                spawn(async { panic!("child panic") }).await;
+            })
+            .await;
+            yield_now().await;
+            yield_now().await;
+        })
+        .unwrap()
+    });
+    assert!(result.is_err());
+}
+
+// this function tests that panics aren't propagated across detached join handles.
+#[test]
+fn detach_handle_panic() {
+    install();
+
+    // test for child tasks
     block_on(async {
         spawn(async {
-            spawn(async { panic!("child panic") }).await;
+            let mut handle = spawn(async { panic!("child panic") });
+            handle.detach();
+            yield_now().await;
+            yield_now().await;
         })
         .await;
-        println!("asd");
         yield_now().await;
+        yield_now().await;
+    })
+    .unwrap();
+    // test for main task
+    block_on(async {
+        let mut handle = spawn(async {
+            panic!("child panic");
+        });
+        handle.detach();
         yield_now().await;
     })
     .unwrap();

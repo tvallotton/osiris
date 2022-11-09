@@ -8,7 +8,6 @@ use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
-use std::time::Duration;
 
 pub use config::{Config, Mode};
 pub(crate) use globals::{RUNTIME, TASK_ID};
@@ -133,17 +132,18 @@ impl Runtime {
 
         // we enter the runtime context so functions like `spawn` are
         // available.
-        let h = self.enter();
+        let _h = self.enter();
 
         // SAFETY: The future is never moved
         let future = unsafe { Pin::new_unchecked(&mut future) };
 
         // # Safety:
         // This operation is safe because the task will not outlive the function scope.
-        // This is also true for the case of a panic. If the main task panicked on `poll`,
-        // it will not have been returned to the task queue, and will have been dropped in
-        // the call to `Executor::poll`.
-        let handle = &mut unsafe { self.executor.block_on_spawn(future) };
+        // If the task is completed successfully, it will be removed from the task queue
+        // and the handle would be dropped too.
+        // On the other hand, if the main task panicked on `poll`, it will not have been
+        // returned to the task queue, and will have been dropped in the call to `Executor::poll`.
+        let handle = &mut unsafe { self.executor.spawn_unchecked(future) };
 
         // we make sure the main task is woken so it gets executed
         waker(handle.id()).wake();
@@ -161,7 +161,6 @@ impl Runtime {
                     // if the main task panicked we resume_unwind.
                     // otherwise we continue we catch it.
                     if !queue.contains_key(&handle.id()) {
-                        drop(h);
                         resume_unwind(error);
                     }
                 }
@@ -180,7 +179,6 @@ impl Runtime {
         let handle_cx = &mut Context::from_waker(&handel_waker);
 
         TASK_ID.with(|task_id| loop {
-            std::thread::sleep(Duration::from_millis(500));
             // we must poll the JoinHandle before polling the executor
             let handle = Pin::new(&mut *handle);
             if executor.main_handle.get() {

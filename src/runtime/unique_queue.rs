@@ -38,9 +38,7 @@ fn smoke_test() {
     let mut queue = UniqueQueue::with_capacity(8);
 
     queue.push_back(0);
-    dbg!(&queue);
     queue.push_back(1);
-    dbg!(&queue);
     assert_eq!(queue.pop_front(), Some(0));
     assert_eq!(queue.pop_front(), Some(1));
 }
