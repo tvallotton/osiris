@@ -18,11 +18,10 @@ fn spawn_on_abort() {
 
     impl Drop for SpawnOnDrop {
         fn drop(&mut self) {
-            println!("ABORTING");
             spawn(async {
                 yield_now().await;
-                println!("ABORTED");
-            });
+            })
+            .detach();
         }
     }
 
@@ -38,6 +37,8 @@ fn spawn_on_abort() {
         }
     })
     .unwrap();
+    // make sure the spawned task runned.
+    todo!()
 }
 
 // this function tests that panics are propagated across join handles.
@@ -46,8 +47,10 @@ fn propagate_panic() {
     install();
     let result = catch_unwind(|| {
         block_on(async {
+            // joined JoinHandle propagates
             spawn(async {
-                spawn(async { panic!("child panic") }).await;
+                // dropped JoinHandle propagates
+                spawn(async { panic!("child panic") });
             })
             .await;
             yield_now().await;
@@ -85,4 +88,9 @@ fn detach_handle_panic() {
         yield_now().await;
     })
     .unwrap();
+}
+
+// this test makes sure a task can abort itself
+fn self_abort() {
+    todo!()
 }

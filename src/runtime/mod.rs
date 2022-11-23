@@ -2,6 +2,7 @@ use crate::runtime::waker::{main_waker, waker};
 use crate::shared_driver::SharedDriver;
 use crate::task::JoinHandle;
 use executor::Executor;
+use std::cell::Cell;
 use std::future::Future;
 use std::io;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
@@ -77,6 +78,7 @@ impl Runtime {
         };
         Ok(rt)
     }
+
     /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
     where
@@ -137,12 +139,15 @@ impl Runtime {
         // SAFETY: The future is never moved
         let future = unsafe { Pin::new_unchecked(&mut future) };
 
-        // # Safety:
+        // # SAFETY:
         // This operation is safe because the task will not outlive the function scope.
         // If the task is completed successfully, it will be removed from the task queue
         // and the handle would be dropped too.
         // On the other hand, if the main task panicked on `poll`, it will not have been
         // returned to the task queue, and will have been dropped in the call to `Executor::poll`.
+        //
+        // The handle is always dropped before this function returns reglardless of wheather the
+        // task panicked or not.
         let handle = &mut unsafe { self.executor.spawn_unchecked(future) };
 
         // we make sure the main task is woken so it gets executed
@@ -152,23 +157,29 @@ impl Runtime {
         // by polling the JoinHandle before polling the main task.
         self.executor.main_handle.set(true);
 
-        loop {
-            let event_loop = AssertUnwindSafe(|| self.event_loop(handle));
-            match catch_unwind(event_loop) {
-                Ok(result) => return result,
-                Err(error) => {
-                    let queue = self.executor.tasks.borrow();
-                    // if the main task panicked we resume_unwind.
-                    // otherwise we continue we catch it.
-                    if !queue.contains_key(&handle.id()) {
-                        resume_unwind(error);
+        TASK_ID.with(|task_id| {
+            loop {
+                let event_loop = AssertUnwindSafe(|| self.event_loop(handle, task_id));
+                match catch_unwind(event_loop) {
+                    Ok(result) => return result,
+                    Err(error) => {
+                        let queue = self.executor.tasks.borrow();
+                        // if the main task panicked we resume_unwind.
+                        // otherwise we continue we catch it.
+                        if !queue.contains_key(&handle.id()) {
+                            resume_unwind(error);
+                        }
                     }
                 }
             }
-        }
+        })
     }
     /// This is the main loop
-    fn event_loop<T>(&self, handle: &mut JoinHandle<T>) -> io::Result<T> {
+    fn event_loop<T>(
+        &self,
+        handle: &mut JoinHandle<T>,
+        task_id: &Cell<Option<usize>>,
+    ) -> io::Result<T> {
         let Runtime {
             executor,
             config,
@@ -177,26 +188,27 @@ impl Runtime {
 
         let handel_waker = main_waker();
         let handle_cx = &mut Context::from_waker(&handel_waker);
-
-        TASK_ID.with(|task_id| loop {
+        let main_id = handle.id();
+        loop {
             // we must poll the JoinHandle before polling the executor
             let handle = Pin::new(&mut *handle);
             if executor.main_handle.get() {
+                executor.main_handle.set(false);
                 if let Poll::Ready(out) = handle.poll(handle_cx) {
                     return Ok(out);
                 }
-                executor.main_handle.set(false);
             }
-            executor.poll(config.event_interval, task_id);
-            executor.remove_aborted();
+
+            executor.poll(config.event_interval, task_id, main_id);
+
             driver.wake_tasks();
-            if executor.is_woken() {
-                driver.submit_and_yield()?;
-            } else {
+            if executor.is_idle() {
                 driver.submit_and_wait()?;
+            } else {
+                driver.submit_and_yield()?;
             }
             driver.wake_tasks();
-        })
+        }
     }
     /// Enters the runtime context. While the guard is in scope
     /// calls to runtime dependent functions and futures such as

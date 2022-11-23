@@ -1,13 +1,36 @@
+use super::executor::Executor;
+use super::Runtime;
+use crate::shared_driver::SharedDriver;
+use std::rc::Rc;
+
 #[cfg(target_os = "linux")]
 use io_uring::IoUring;
 
+/// Configuration struct for an osiris runtime.
+/// # Example
+/// ```rust
+/// # use osiris::runtime::{Config, Runtime, Mode};
+/// # fn __() -> Result<(), std::io::Error> {
+/// // we override the values we want to change
+/// let config = Config {
+///     #[cfg(target_os = "linux")]
+///     mode: Mode::Polling { idle_timeout: 100 },
+///     .. Config::default()
+/// };
+///
+/// let runtime = config.build()?;
+/// runtime.block_on(async {
+///     /* ... */
+/// });
+/// # Ok(())}
+/// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Config {
     /// Sets the number of scheduler ticks after which the scheduler will poll for
     /// external events (timers, I/O, and so on).
     ///
-    /// A scheduler "tick" corresponds to one `poll` invocation on a task. By default,
+    /// A scheduler "tick" corresponds roughly to one `poll` invocation on a task. By default,
     /// the event interval is `61`. Which means that at most `61` futures will be polled
     /// before polling for events.
     ///
@@ -31,9 +54,10 @@ pub struct Config {
     /// This value cannot be greater than 4096.
     pub ring_entries: u32,
     /// Determines whether the kernel will be notified for events, or whether it will be continuously
-    /// polling for events. By default this value is set to `Notify`
+    /// polling for events. By default this value is set to `Notify`.
     #[cfg(target_os = "linux")]
     pub mode: Mode,
+    // priv_: (),
 }
 /// Determines whether the kernel will be notified for events, or whether it will be continuously
 /// polling for events.
@@ -63,12 +87,29 @@ impl Default for Config {
             ring_entries: 2048,
             #[cfg(target_os = "linux")]
             mode: Mode::default(),
+            // priv_: (),
         }
     }
 }
 
 impl Config {
     pub const DEFAULT_WAKERS: usize = 2048;
+
+    /// Creates the configured Runtime.
+    /// The returned Runtime instance is ready to spawn tasks.
+    ///
+    /// # Errors
+    /// If the async primitives could not be instantiated.
+    pub fn build(self) -> std::io::Result<Runtime> {
+        let executor = Rc::new(Executor::new());
+        let driver = SharedDriver::new(self.clone())?;
+        let rt = Runtime {
+            config: self,
+            executor,
+            driver,
+        };
+        Ok(rt)
+    }
 
     #[cfg(target_os = "linux")]
     pub(crate) fn io_uring(self) -> std::io::Result<IoUring> {

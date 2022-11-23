@@ -1,4 +1,4 @@
-use super::Task;
+use super::shared_task::Task;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -10,8 +10,10 @@ use std::task::{Context, Poll};
 ///
 /// # Panics
 /// Awating a task will panic if the awaited task panicked.
+/// Dropping a task will atomatically cancel
 pub struct JoinHandle<T> {
     task: Task,
+    detached: bool,
     _t: PhantomData<T>,
 }
 
@@ -19,10 +21,13 @@ impl<T> Unpin for JoinHandle<T> {}
 
 impl<T> JoinHandle<T> {
     /// Detaches the task from the join handle, meaning it will not
-    /// get cancelled when the handle gets dropped.
+    /// get cancelled when the handle gets dropped. This also implies
+    /// the task will not propagate panics to the parent task on drop.
+    ///
+    /// Detached tasks can be aborted with the [`JoinHandle::abort`] method.
     #[inline]
     pub fn detach(&mut self) {
-        self.task.detached = true;
+        self.detached = true;
     }
 
     #[must_use]
@@ -30,11 +35,16 @@ impl<T> JoinHandle<T> {
         self.task.id()
     }
 
-    /// This function will schedule the task to be aborted in the next event loop.  
-    /// The task is not guaranteed to be cancelled immediately. It may still be possible
-    /// for the task to be finished before it gets aborted.
-    pub fn abort(&self) {
-        self.task.abort();
+    /// Aborts the task and runs the spawned future's destructor.
+    /// Unlike, other runtimes, osiris tasks are guaranteed to be cancelled immediately.
+    /// This is primarily intended for aborting detached tasks, since normal tasks can be
+    /// aborted by dropping them. Note that the cancelled task may spawn other tasks to
+    /// deal with pending io events.
+    ///
+    /// # Panics
+    /// If the cancelled task panicked, or if a task attempts to cancel itself.
+    pub fn abort(mut self) {
+        self.detached = false;
     }
 }
 
@@ -42,7 +52,16 @@ impl<T> JoinHandle<T> {
     pub(crate) fn new(task: Task) -> JoinHandle<T> {
         JoinHandle {
             task,
+            detached: false,
             _t: PhantomData::default(),
+        }
+    }
+}
+
+impl<T> Drop for JoinHandle<T> {
+    fn drop(&mut self) {
+        if self.detached {
+            self.task.abort();
         }
     }
 }

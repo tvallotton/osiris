@@ -1,12 +1,15 @@
-use std::cell::{BorrowMutError, Cell, RefCell};
+use std::any::Any;
+use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::hint::unreachable_unchecked;
 use std::marker::PhantomPinned;
 use std::mem::replace;
+use std::panic::resume_unwind;
 use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
+use std::thread::panicking;
 
-use super::RawTask;
+use super::raw_task::RawTask;
 
 pub(crate) struct TaskRepr<F: Future> {
     /// Even though strictly speaking cells do not pin project,
@@ -22,6 +25,7 @@ pub(crate) enum Payload<F: Future> {
     Aborted,
     Pending { fut: F },
     Ready { output: F::Output },
+    Panic { error: Box<dyn Any + Send> },
 }
 
 impl<F: Future> TaskRepr<F> {
@@ -100,8 +104,11 @@ where
                 Payload::Taken => {
                     panic!("polled a JoinHandle future after returning Poll::Ready(..).");
                 }
+                Payload::Panic { error } => resume_unwind(error),
                 Payload::Aborted => {
-                    panic!("attempted to join a task that has been aborted.")
+                    unreachable!(
+                        "attempted to join a task that has been aborted. This is a bug in osiris."
+                    )
                 }
                 // SAFETY: we already checked for this case
                 Payload::Pending { .. } => unsafe { unreachable_unchecked() },
@@ -109,23 +116,51 @@ where
         }
     }
 
-    /// Aborts a task immediately. It may fail if the task
-    /// is already borrowed, possibly if it is being polled.
-    fn try_abort(self: Pin<&Self>) -> Result<(), BorrowMutError> {
-        let mut payload = self.payload.try_borrow_mut()?;
-        if let Payload::Pending { .. } = &*payload {
-            *payload = Payload::Aborted;
+    /// Aborts a task immediately.
+    ///
+    /// # Panics
+    /// If the child task has panicked or the task is already borrowed,
+    /// However, this function will avoid to double panic, because it is used
+    /// in the drop implementation of `JoinHandle`.
+    fn abort(self: Pin<&Self>) {
+        let Ok(mut task) = self.payload.try_borrow_mut() else {
+            // we don't want to abort the process by
+            // double panicking
+            if panicking() {
+                return;
+            }
+            panic!("A task attempted to abort itself. This is not supported, move the JoinHandle to another task or detach it if you don't want it to panic."); 
+        };
+
+        if !matches!(&*task, Payload::Panic { .. }) {
+            *task = Payload::Aborted;
+            self.wake_join();
+            return;
         }
-        self.wake_join();
-        Ok(())
+
+        let Payload::Panic{ error } = replace(&mut *task, Payload::Aborted) else {
+            // SAFETY: already checked for the case above
+            unsafe { unreachable_unchecked() }
+        };
+        // we don't want to abort the process by
+        // double panicking
+        if !panicking() {
+            resume_unwind(error);
+        }
+    }
+    fn panicked(self: Pin<&Self>, error: Box<dyn Any + Send>) {
+        let mut payload = self.payload.borrow_mut();
+        *payload = Payload::Panic { error };
     }
 
+    /// This function is only used for debugging purposes.
     fn status(&self) -> &'static str {
         match &*self.payload.borrow() {
             Payload::Aborted => "aborted",
             Payload::Pending { .. } => "pending",
             Payload::Ready { .. } => "ready",
             Payload::Taken => "taken",
+            Payload::Panic { .. } => "panic",
         }
     }
 }

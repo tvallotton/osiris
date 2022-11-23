@@ -33,6 +33,7 @@ impl SharedDriver {
     pub fn wake_tasks(&self) {
         self.0.borrow_mut().wake_tasks();
     }
+
     #[cfg(target_os = "linux")]
     pub unsafe fn push(&self, entry: &Entry) -> std::io::Result<()> {
         // Safety: Invariants must be upheld by the caller.

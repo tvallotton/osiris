@@ -2,24 +2,21 @@ use super::unique_queue::UniqueQueue;
 use super::waker::waker;
 use crate::hasher::NoopHasher;
 use crate::task::{JoinHandle, Task};
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::future::{poll_fn, Future};
 use std::mem::transmute;
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
-use std::task::Context;
+use std::task::{Context, Poll};
 
 pub(crate) struct Executor {
     /// This collection stores all the tasks spawned onto the runtime.
     pub(crate) tasks: RefCell<Tasks>,
-    /// This is queue stores all woken tasks in the order they were
+    /// This queue stores all woken tasks in the order they were
     /// woken.
     pub(crate) woken: RefCell<UniqueQueue>,
-    /// This queue stores the ids for all aborted tasks.
-    pub(crate) aborted: RefCell<UniqueQueue>,
     /// This bool states wheather the main task's JoinHandle has been woken.
-    /// This will be true when the main task has finished.
     pub(crate) main_handle: Cell<bool>,
     /// A monotonically increasing counter for spawned tasks.
     /// It always corresponds to an available task id.
@@ -34,15 +31,15 @@ impl Executor {
         Executor {
             tasks: RefCell::new(HashMap::with_capacity_and_hasher(4096, NoopHasher::new())),
             woken: RefCell::new(UniqueQueue::with_capacity(4096)),
-            aborted: RefCell::new(UniqueQueue::with_capacity(4096)),
             main_handle: Cell::new(true),
             task_id: Cell::default(),
         }
     }
 
+    /// Spawns a non-'static future onto the runtime.
     /// # Safety
     /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned
-    /// task. Otherwise, a use after free will occur.    
+    /// task and its join handle. Otherwise, a use after free will occur.
     pub unsafe fn spawn_unchecked<F>(&self, future: Pin<&mut F>) -> JoinHandle<F::Output>
     where
         F: Future,
@@ -87,7 +84,7 @@ impl Executor {
     /// the specified number of ticks. If a future finishes or panics it will be
     /// permanently removed from the task queue.
     #[inline]
-    pub fn poll(&self, ticks: u32, task_id: &Cell<Option<usize>>) {
+    pub fn poll(&self, ticks: u32, task_id: &Cell<Option<usize>>, main_id: usize) {
         for _ in 0..ticks {
             // we retrieve the queue of woken tasks
             let mut woken = self.woken.borrow_mut();
@@ -108,38 +105,21 @@ impl Executor {
 
             let waker = waker(task_id);
             let cx = &mut Context::from_waker(&waker);
-            let poll = task.poll(cx);
+            let poll = catch_unwind(AssertUnwindSafe(|| task.poll(cx)));
 
-            if poll.is_pending() {
-                // we insert it back into the queue.
-                self.tasks.borrow_mut().insert(task_id, task);
+            match poll {
+                Ok(Poll::Pending) => {
+                    // we insert it back into the queue.
+                    self.tasks.borrow_mut().insert(task_id, task);
+                }
+                Ok(Poll::Ready(())) => continue,
+                Err(error) if task_id == main_id => resume_unwind(error),
+                Err(error) => task.panicked(error),
             }
         }
     }
-    /// Removes aborted tasks from the executor.
-    pub fn remove_aborted(&self) {
-        loop {
-            let mut aborted = self.aborted.borrow_mut();
-            let Some(task_id) = aborted.pop_front() else {
-                break;
-            };
-            let mut tasks = self.tasks.borrow_mut();
-            dbg!(&tasks);
-            let Some(task) = tasks.remove(&task_id) else {
-                return;
-            };
-
-            // we first drop the task queue,
-            // in case the task destructors wants to spawn other futures
-            drop(tasks);
-            // we now drop the aborted queue in case the task destructor
-            // wants to abort another task.
-            drop(aborted);
-            task.abort();
-        }
-    }
-
-    pub fn is_woken(&self) -> bool {
-        self.woken.borrow().len() > 0
+    /// returns true if there is no more work to do
+    pub fn is_idle(&self) -> bool {
+        self.woken.borrow().len() == 0
     }
 }

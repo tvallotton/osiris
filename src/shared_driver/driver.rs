@@ -17,7 +17,7 @@ pub(crate) struct Driver {
     #[cfg(target_os = "linux")]
     io_uring: IoUring,
 }
-
+#[allow(warnings)]
 impl Driver {
     #[allow(unused_variables)]
     pub fn new(config: Config) -> io::Result<Driver> {

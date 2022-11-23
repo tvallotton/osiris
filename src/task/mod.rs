@@ -1,19 +1,15 @@
 use crate::runtime::current_unwrap;
-use std::cell::BorrowMutError;
-use std::fmt::Debug;
 use std::future::Future;
-use std::pin::Pin;
-use std::rc::Rc;
-use std::task::{Context, Poll};
 
 pub use completion::complete;
 pub use join_handle::JoinHandle;
+pub(crate) use shared_task::Task;
 pub use yield_now::yield_now;
-
-use self::task_repr::TaskRepr;
 
 mod completion;
 mod join_handle;
+mod raw_task;
+mod shared_task;
 mod task_repr;
 mod yield_now;
 
@@ -71,79 +67,4 @@ pub fn id() -> usize {
         .with(Clone::clone)
         .get()
         .expect("called `task_id()` from the outside of a task context.")
-}
-
-/// Aborts from the current task abnormally. Note that calling
-/// this function will cause the parent task to panic unless the
-/// task is detached.
-pub async fn abort() -> ! {
-    current_unwrap("task::exit()")
-        .executor
-        .aborted
-        .borrow_mut()
-        .push_back(id());
-    std::future::pending().await
-}
-#[derive(Clone)]
-pub(crate) struct Task {
-    raw: Pin<Rc<dyn RawTask>>,
-    id: usize,
-    detached: bool,
-}
-
-impl Task {
-    pub(crate) fn new<F: Future + 'static>(id: usize, fut: F) -> Task {
-        Task {
-            raw: Rc::pin(TaskRepr::new(fut)),
-            id,
-            detached: false,
-        }
-    }
-
-    pub(crate) fn id(&self) -> usize {
-        self.id
-    }
-
-    pub(crate) fn poll(&self, cx: &mut Context) -> Poll<()> {
-        self.raw.as_ref().poll(cx)
-    }
-
-    /// Schedules the task to be aborted. Tasks are not guaranteed to be aborted
-    /// immediately, and their cancellation might be delayed until the next event cycle.
-    pub fn abort(&self) {
-        let Err(_) = self.raw.as_ref().try_abort() else {
-            return;
-        };
-        current_unwrap("JoinHandle::abort")
-            .executor
-            .aborted
-            .borrow_mut()
-            .push_back(self.id);
-    }
-}
-impl Debug for Task {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Task")
-            .field("id", &self.id)
-            .field("detached", &self.detached)
-            .field("status", &self.raw.status())
-            .finish()
-    }
-}
-
-pub(crate) trait RawTask {
-    fn wake_join(&self);
-    fn try_abort(self: Pin<&Self>) -> Result<(), BorrowMutError>;
-    fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()>;
-    unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, ptr: *mut ());
-    fn status(&self) -> &'static str;
-}
-
-impl Drop for Task {
-    fn drop(&mut self) {
-        self.raw.wake_join();
-        if !self.detached {
-            self.abort();
-        }
-    }
 }
