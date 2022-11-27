@@ -5,6 +5,10 @@ edition = "2021"
 
 [features]
 
+
+[profile.release]
+debug = true
+
 [dependencies]
 libc = "0.2.134"
 
@@ -15,3 +19,4 @@ io-uring = { version = "0.5.6" }
 [dev-dependencies]
 color-eyre = "0.6.2"
 dotenv = "0.15.0"
+tokio = { version = "*", features = ["full"] }

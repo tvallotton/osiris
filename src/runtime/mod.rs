@@ -1,10 +1,11 @@
 use crate::runtime::waker::{main_waker, waker};
 use crate::shared_driver::SharedDriver;
-use crate::task::JoinHandle;
+use crate::task::{JoinHandle, Task};
 use executor::Executor;
 use std::cell::Cell;
-use std::future::Future;
+use std::future::{poll_fn, Future};
 use std::io;
+use std::mem::transmute;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::rc::Rc;
@@ -69,7 +70,7 @@ impl Runtime {
     ///
     pub fn new() -> io::Result<Runtime> {
         let config = Config::default();
-        let executor = Rc::new(Executor::new());
+        let executor = Rc::new(Executor::new(config.clone()));
         let driver = SharedDriver::new(config.clone())?;
         let rt = Runtime {
             config,
@@ -84,7 +85,7 @@ impl Runtime {
     where
         F: Future + 'static,
     {
-        let task = self.executor.spawn(future);
+        let task = self.executor.spawn(future, self.clone());
         JoinHandle::new(task)
     }
 
@@ -148,7 +149,7 @@ impl Runtime {
         //
         // The handle is always dropped before this function returns reglardless of wheather the
         // task panicked or not.
-        let handle = &mut unsafe { self.executor.spawn_unchecked(future) };
+        let handle = &mut unsafe { self.spawn_unchecked(future) };
 
         // we make sure the main task is woken so it gets executed
         waker(handle.id()).wake();
@@ -224,5 +225,32 @@ impl Runtime {
         let new_rt = Some(self.clone());
         let rt = RUNTIME.with(|cell| cell.replace(new_rt));
         Enter(rt, &())
+    }
+
+    /// Spawns a non-'static future onto the runtime.
+    /// # Safety
+    /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned
+    /// task and its join handle. Otherwise, a use after free will occur.
+    #[must_use]
+    pub unsafe fn spawn_unchecked<F>(&self, future: Pin<&mut F>) -> JoinHandle<F::Output>
+    where
+        F: Future,
+    {
+        // SAFETY:
+        // this trick will let us upgrade the lifetime
+        // of F into a 'static lifetime. The caller must
+        // ensure this invariant is met.
+        let ptr: *mut () = unsafe { transmute(future) };
+
+        let future = poll_fn(move |cx| {
+            // SAFETY: explained in the transmute above.
+            let future: Pin<&mut F> = unsafe { transmute(ptr) };
+            future.poll(cx)
+        });
+        let task_id = self.executor.task_id();
+        let task = Task::new(task_id, future, self.clone());
+        self.executor.tasks.borrow_mut().insert(0, task.clone());
+
+        JoinHandle::new(task)
     }
 }

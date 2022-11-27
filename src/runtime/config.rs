@@ -57,7 +57,11 @@ pub struct Config {
     /// polling for events. By default this value is set to `Notify`.
     #[cfg(target_os = "linux")]
     pub mode: Mode,
-    // priv_: (),
+    /// Determines the initial allocation size. When the runtime is expected to run for a
+    /// long period of time, or it is expected to manage millions of tasks then a bigger value
+    /// is better. When the runtime is going to be used for a single io-event then a smaller value
+    /// is best. It defaults to 4096.
+    pub init_capacity: usize,
 }
 /// Determines whether the kernel will be notified for events, or whether it will be continuously
 /// polling for events.
@@ -87,7 +91,7 @@ impl Default for Config {
             ring_entries: 2048,
             #[cfg(target_os = "linux")]
             mode: Mode::default(),
-            // priv_: (),
+            init_capacity: 4096,
         }
     }
 }
@@ -101,7 +105,7 @@ impl Config {
     /// # Errors
     /// If the async primitives could not be instantiated.
     pub fn build(self) -> std::io::Result<Runtime> {
-        let executor = Rc::new(Executor::new());
+        let executor = Rc::new(Executor::new(self.clone()));
         let driver = SharedDriver::new(self.clone())?;
         let rt = Runtime {
             config: self,

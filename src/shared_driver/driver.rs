@@ -19,6 +19,7 @@ pub(crate) struct Driver {
 }
 #[allow(warnings)]
 impl Driver {
+    /// creates a new driver.
     #[allow(unused_variables)]
     pub fn new(config: Config) -> io::Result<Driver> {
         let wakers = {
@@ -31,7 +32,7 @@ impl Driver {
         let event_id = 0;
         let driver = Driver {
             wakers,
-            event_id,
+            event_id: 0,
             #[cfg(target_os = "linux")]
             io_uring,
         };

@@ -152,15 +152,4 @@ where
         let mut payload = self.payload.borrow_mut();
         *payload = Payload::Panic { error };
     }
-
-    /// This function is only used for debugging purposes.
-    fn status(&self) -> &'static str {
-        match &*self.payload.borrow() {
-            Payload::Aborted => "aborted",
-            Payload::Pending { .. } => "pending",
-            Payload::Ready { .. } => "ready",
-            Payload::Taken => "taken",
-            Payload::Panic { .. } => "panic",
-        }
-    }
 }

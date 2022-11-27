@@ -1,13 +1,13 @@
 use super::unique_queue::UniqueQueue;
 use super::waker::waker;
+use super::{Config, Runtime};
 use crate::hasher::NoopHasher;
-use crate::task::{JoinHandle, Task};
+use crate::task::Task;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::future::{poll_fn, Future};
-use std::mem::transmute;
+use std::future::Future;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
-use std::pin::Pin;
+
 use std::task::{Context, Poll};
 
 pub(crate) struct Executor {
@@ -27,39 +27,16 @@ type Tasks = HashMap<usize, Task, NoopHasher>;
 
 impl Executor {
     /// Creates a new executor
-    pub fn new() -> Executor {
+    pub fn new(Config { init_capacity, .. }: Config) -> Executor {
         Executor {
-            tasks: RefCell::new(HashMap::with_capacity_and_hasher(4096, NoopHasher::new())),
-            woken: RefCell::new(UniqueQueue::with_capacity(4096)),
+            tasks: RefCell::new(HashMap::with_capacity_and_hasher(
+                init_capacity,
+                NoopHasher::new(),
+            )),
+            woken: RefCell::new(UniqueQueue::with_capacity(init_capacity)),
             main_handle: Cell::new(true),
             task_id: Cell::default(),
         }
-    }
-
-    /// Spawns a non-'static future onto the runtime.
-    /// # Safety
-    /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned
-    /// task and its join handle. Otherwise, a use after free will occur.
-    pub unsafe fn spawn_unchecked<F>(&self, future: Pin<&mut F>) -> JoinHandle<F::Output>
-    where
-        F: Future,
-    {
-        // SAFETY:
-        // this trick will let us upgrade the lifetime
-        // of F into a 'static lifetime. The caller must
-        // ensure this invariant is met.
-        let ptr: *mut () = unsafe { transmute(future) };
-
-        let future = poll_fn(move |cx| {
-            // SAFETY: explained in the transmute above.
-            let future: Pin<&mut F> = unsafe { transmute(ptr) };
-            future.poll(cx)
-        });
-        let task_id = self.task_id();
-        let task = Task::new(task_id, future);
-        self.tasks.borrow_mut().insert(0, task.clone());
-
-        JoinHandle::new(task)
     }
 
     pub fn task_id(&self) -> usize {
@@ -68,14 +45,14 @@ impl Executor {
         task_id
     }
 
-    pub fn spawn<F>(&self, future: F) -> Task
+    pub fn spawn<F>(&self, future: F, rt: Runtime) -> Task
     where
         F: Future + 'static,
     {
         let mut queue = self.tasks.borrow_mut();
 
         let task_id = self.task_id();
-        let future = Task::new(task_id, future);
+        let future = Task::new(task_id, future, rt);
         queue.insert(task_id, future.clone());
         waker(task_id).wake();
         future
@@ -112,9 +89,15 @@ impl Executor {
                     // we insert it back into the queue.
                     self.tasks.borrow_mut().insert(task_id, task);
                 }
-                Ok(Poll::Ready(())) => continue,
-                Err(error) if task_id == main_id => resume_unwind(error),
-                Err(error) => task.panicked(error),
+                Ok(Poll::Ready(())) => {
+                    continue;
+                }
+                Err(error) if task_id == main_id => {
+                    resume_unwind(error);
+                }
+                Err(error) => {
+                    task.panicked(error);
+                }
             }
         }
     }

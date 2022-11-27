@@ -10,7 +10,6 @@
 #![allow(clippy::borrow_as_ptr)]
 
 mod hasher;
-
 pub mod runtime;
 pub mod shared_driver;
 pub mod task;
