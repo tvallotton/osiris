@@ -1,7 +1,5 @@
-use osiris::{
-    runtime::{block_on, Config},
-    task::yield_now,
-};
+use osiris::runtime::{block_on, Config};
+use osiris::task::yield_now;
 use tokio::join;
 
 const TASKS: usize = 10000;
@@ -37,7 +35,8 @@ fn bench_osiris() {
 
 #[test]
 fn bench_tokio() {
-    use tokio::{runtime::Builder, spawn};
+    use tokio::runtime::Builder;
+    use tokio::spawn;
     let time = std::time::Instant::now();
     Builder::new_multi_thread()
         .build()
