@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::panic::catch_unwind;
 
 use osiris::runtime::block_on;
@@ -19,15 +20,22 @@ fn spawn_on_abort() {
         fn drop(&mut self) {
             spawn(async {
                 yield_now().await;
+                SUCCESS.with(|val| val.set(true));
             })
             .detach();
         }
     }
 
+    thread_local! {
+        static SUCCESS: Cell<bool> = Cell::default();
+    }
+
     block_on(async move {
         let handle = spawn(async {
             let _span_on_drop = SpawnOnDrop;
-            yield_now().await;
+            loop {
+                yield_now().await;
+            }
         });
         yield_now().await;
         handle.abort();
@@ -37,7 +45,7 @@ fn spawn_on_abort() {
     })
     .unwrap();
     // make sure the spawned task runned.
-    todo!()
+    assert!(SUCCESS.with(|val| val.get()))
 }
 
 // this function tests that panics are propagated across join handles.
@@ -49,11 +57,9 @@ fn propagate_panic() {
             // joined JoinHandle propagates
             spawn(async {
                 // dropped JoinHandle propagates
-                spawn(async { panic!("child panic") });
+                spawn(async { panic!("child panic") }).await;
             })
             .await;
-            yield_now().await;
-            yield_now().await;
         })
         .unwrap()
     });

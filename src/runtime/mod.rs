@@ -1,4 +1,4 @@
-use crate::runtime::waker::{main_waker, waker};
+use crate::runtime::waker::main_waker;
 use crate::shared_driver::SharedDriver;
 use crate::task::JoinHandle;
 use executor::Executor;
@@ -17,7 +17,9 @@ mod config;
 mod executor;
 mod globals;
 mod unique_queue;
-pub(crate) mod waker;
+mod waker;
+
+type TaskId<'a> = &'a Cell<Option<u64>>;
 
 /// Returns a handle to the currently running [`Runtime`].
 /// # Panics
@@ -127,22 +129,19 @@ impl Runtime {
         // available.
         let _h = self.enter();
 
-        // SAFETY: The future is never moved
+        // Safety: The future is never moved
         let future = unsafe { Pin::new_unchecked(&mut future) };
 
-        // # SAFETY:
+        // # Safety:
         // This operation is safe because the task will not outlive the function scope.
         // If the task is completed successfully, it will be removed from the task queue
         // and the handle would be dropped too.
         // On the other hand, if the main task panicked on `poll`, it will not have been
         // returned to the task queue, and will have been dropped in the call to `Executor::poll`.
         //
-        // The handle is always dropped before this function returns reglardless of wheather the
+        // The handle is always dropped before this function returns regardless of wheather the
         // task panicked or not.
         let handle = &mut unsafe { self.spawn_unchecked(future) };
-
-        // we make sure the main task is woken so it gets executed
-        waker(handle.id()).wake();
 
         // we also make sure the waker for the JoinHandle gets registered
         // by polling the JoinHandle before polling the main task.
@@ -154,10 +153,9 @@ impl Runtime {
                 match catch_unwind(event_loop) {
                     Ok(result) => return result,
                     Err(error) => {
-                        let queue = self.executor.tasks.borrow();
                         // if the main task panicked we resume_unwind.
-                        // otherwise we continue we catch it.
-                        if !queue.contains_key(&handle.id()) {
+                        // otherwise we catch it.
+                        if dbg!(task_id.get()) == dbg!(handle.id().into()) {
                             resume_unwind(error);
                         }
                     }
@@ -166,11 +164,7 @@ impl Runtime {
         })
     }
     /// This is the main loop
-    fn event_loop<T>(
-        &self,
-        handle: &mut JoinHandle<T>,
-        task_id: &Cell<Option<usize>>,
-    ) -> io::Result<T> {
+    fn event_loop<T>(&self, handle: &mut JoinHandle<T>, task_id: TaskId) -> io::Result<T> {
         let Runtime {
             executor,
             config,
@@ -179,9 +173,11 @@ impl Runtime {
 
         let handel_waker = main_waker();
         let handle_cx = &mut Context::from_waker(&handel_waker);
-        let main_id = handle.id();
+
         loop {
-            // we must poll the JoinHandle before polling the executor
+            // we must poll the JoinHandle before polling the executor.
+            // So the join waker gets registered on the task before it
+            // completes.
             let handle = Pin::new(&mut *handle);
             if executor.main_handle.get() {
                 executor.main_handle.set(false);
@@ -190,7 +186,7 @@ impl Runtime {
                 }
             }
 
-            executor.poll(config.event_interval, task_id, main_id);
+            executor.poll(config.event_interval, task_id);
 
             driver.wake_tasks();
             if executor.is_idle() {
@@ -223,7 +219,8 @@ impl Runtime {
         F: Future + 'static,
     {
         let task = self.executor.spawn(future, self.clone());
-        JoinHandle::new(task)
+        // Safety: both types are F::Output
+        unsafe { JoinHandle::new(task) }
     }
     /// Spawns a non-'static future onto the runtime.
     /// # Safety
@@ -236,6 +233,7 @@ impl Runtime {
     {
         // Safety: the invariants must be upheld by the caller.
         let task = unsafe { self.executor.spawn_unchecked(future, self.clone()) };
-        JoinHandle::new(task)
+        // Safety: both types are F::Output
+        unsafe { JoinHandle::new(task) }
     }
 }

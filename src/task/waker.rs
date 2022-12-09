@@ -16,7 +16,7 @@ fn raw_waker(data: *const ()) -> RawWaker {
 
 const RAW_WAKER_VTABLE: RawWakerVTable = {
     let clone = |data| {
-        // Safety:
+        // Safety: its the same as the input type
         let task = unsafe { SharedTask::from_raw(data) };
         let new = task.clone();
         forget(task);
@@ -26,7 +26,11 @@ const RAW_WAKER_VTABLE: RawWakerVTable = {
         // Safety: same as above
         let task = unsafe { SharedTask::from_raw(data) };
     };
-    let wake_by_ref = |data| todo!();
+    let wake_by_ref = |data| {
+        // Safety: same as above
+        let task = unsafe { SharedTask::from_raw(data) };
+        // let task = task.task().;
+    };
     let drop = |data| todo!();
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 };

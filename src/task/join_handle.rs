@@ -32,7 +32,7 @@ impl<T> JoinHandle<T> {
     }
 
     #[must_use]
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> u64 {
         self.task.id()
     }
 
@@ -50,7 +50,10 @@ impl<T> JoinHandle<T> {
 }
 
 impl<T> JoinHandle<T> {
-    pub(crate) fn new(task: Task) -> JoinHandle<T> {
+    /// Safety
+    /// The caller must make sure that the output of the task is the same as the output
+    /// of the [`JoinHandle`].
+    pub(crate) unsafe fn new(task: Task) -> JoinHandle<T> {
         JoinHandle {
             task,
             detached: false,
@@ -61,7 +64,7 @@ impl<T> JoinHandle<T> {
 
 impl<T> Drop for JoinHandle<T> {
     fn drop(&mut self) {
-        if self.detached {
+        if !self.detached {
             self.task.abort();
         }
     }
@@ -72,7 +75,7 @@ impl<T> Future for JoinHandle<T> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut output: Poll<T> = Poll::Pending;
         let ptr = &mut output as *mut _ as *mut ();
-        // SAFETY:
+        // Safety:
         // The output type is the same as the JoinHandle since a
         // JoinHandle<T> cannot be constructed from a task of a
         // type different from T.

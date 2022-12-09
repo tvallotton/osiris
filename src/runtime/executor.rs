@@ -1,47 +1,34 @@
-use super::unique_queue::UniqueQueue;
-use super::waker::waker;
 use super::{Config, Runtime};
-use crate::hasher::NoopHasher;
 use crate::task::Task;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::future::{poll_fn, Future};
 use std::mem::transmute;
-use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
-
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
 
 pub(crate) struct Executor {
-    /// This collection stores all the tasks spawned onto the runtime.
-    pub(crate) tasks: RefCell<Tasks>,
-    /// This queue stores all woken tasks in the order they were
-    /// woken.
-    pub(crate) woken: RefCell<UniqueQueue>,
+    /// The run queue holds all tasks that are currently ready to do progress,
+    /// either because they have been woken, or they were just spawned.
+    pub(crate) queue: RefCell<VecDeque<Task>>,
     /// This bool states wheather the main task's JoinHandle has been woken.
     pub(crate) main_handle: Cell<bool>,
     /// A monotonically increasing counter for spawned tasks.
     /// It always corresponds to an available task id.
-    pub(crate) task_id: Cell<usize>,
+    pub(crate) task_id: Cell<u64>,
 }
-
-type Tasks = HashMap<usize, Task, NoopHasher>;
 
 impl Executor {
     /// Creates a new executor
     pub fn new(Config { init_capacity, .. }: Config) -> Executor {
         Executor {
-            tasks: RefCell::new(HashMap::with_capacity_and_hasher(
-                init_capacity,
-                NoopHasher::new(),
-            )),
-            woken: RefCell::new(UniqueQueue::with_capacity(init_capacity)),
+            queue: RefCell::new(VecDeque::with_capacity(init_capacity)),
             main_handle: Cell::new(true),
             task_id: Cell::default(),
         }
     }
 
-    pub fn task_id(&self) -> usize {
+    pub fn task_id(&self) -> u64 {
         let task_id = self.task_id.get();
         self.task_id.set(task_id.overflowing_add(1).0);
         task_id
@@ -51,13 +38,11 @@ impl Executor {
     where
         F: Future + 'static,
     {
-        let mut queue = self.tasks.borrow_mut();
-
+        let mut queue = self.queue.borrow_mut();
         let task_id = self.task_id();
-        let future = Task::new(task_id, future, rt);
-        queue.insert(task_id, future.clone());
-        waker(task_id).wake();
-        future
+        let task = Task::new(task_id, future, rt);
+        queue.push_back(task.clone());
+        task
     }
 
     /// Spawns a non-'static future onto the runtime.
@@ -69,69 +54,47 @@ impl Executor {
     where
         F: Future,
     {
-        // SAFETY:
+        // Safety:
         // this trick will let us upgrade the lifetime
         // of F into a 'static lifetime. The caller must
         // ensure this invariant is met.
         let ptr: *mut () = unsafe { transmute(future) };
 
         let future = poll_fn(move |cx| {
-            // SAFETY: explained in the transmute above.
+            // Safety: explained in the transmute above.
             let future: Pin<&mut F> = unsafe { transmute(ptr) };
             future.poll(cx)
         });
-        let task_id = self.task_id();
-        let task = Task::new(task_id, future, rt);
-        self.tasks.borrow_mut().insert(0, task.clone());
-        task
+        self.spawn(future, rt)
     }
 
     /// It polls at most `ticks` futures. It may poll less futures than
     /// the specified number of ticks. If a future finishes or panics it will be
     /// permanently removed from the task queue.
     #[inline]
-    pub fn poll(&self, ticks: u32, task_id: &Cell<Option<usize>>, main_id: usize) {
+    pub fn poll(&self, ticks: u32, task_id: &Cell<Option<u64>>) {
         for _ in 0..ticks {
             // we retrieve the queue of woken tasks
-            let mut woken = self.woken.borrow_mut();
+            let mut run_queue = self.queue.borrow_mut();
 
-            task_id.set(woken.pop_front());
-
-            let Some(task_id) = task_id.get() else {
-                continue;
+            let Some(task) = run_queue.pop_front() else {
+                break;
             };
 
-            // we drop woken so the task can call `.wake()`.
-            drop(woken);
+            task_id.set(Some(task.id()));
 
-            // we remove the task from the task map
-            let Some(task) = self.tasks.borrow_mut().remove(&task_id) else {
-                continue;
-            };
+            // we drop the run queue so the task is able to
+            // spawn other tasks.
+            drop(run_queue);
 
-            let waker = waker(task_id);
+            let waker = task.clone().waker();
             let cx = &mut Context::from_waker(&waker);
-            let poll = catch_unwind(AssertUnwindSafe(|| task.poll(cx)));
-
-            match poll {
-                Ok(Poll::Pending) => {
-                    // we insert it back into the queue.
-                    self.tasks.borrow_mut().insert(task_id, task);
-                }
-                Ok(Poll::Ready(())) => {
-                    continue;
-                }
-                Err(error) if task_id == main_id => {
-                    resume_unwind(error);
-                }
-                Err(error) => {
-                    task.panic(error);
-                }
-            }
+            task.poll(cx);
         }
     }
+
     /// returns true if there is no more work to do
     pub fn is_idle(&self) -> bool {
-        self.woken.borrow().len() == 0
+        self.queue.borrow().len() == 0
     }
 }

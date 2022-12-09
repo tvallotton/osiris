@@ -2,7 +2,7 @@ use self::shared_task::SharedTask;
 use crate::runtime::Runtime;
 use std::any::Any;
 use std::future::Future;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Waker};
 
 pub use completion::complete;
 pub use fns::{id, spawn};
@@ -22,26 +22,25 @@ mod yield_now;
 #[derive(Clone)]
 pub(crate) struct Task {
     pub(crate) shared: SharedTask,
-    id: usize,
+    id: u64,
     detached: bool,
 }
 
 impl Task {
-    pub(crate) fn new<F: Future + 'static>(id: usize, fut: F, rt: Runtime) -> Task {
+    pub(crate) fn new<F: Future + 'static>(id: u64, fut: F, rt: Runtime) -> Task {
         Task {
             shared: SharedTask::new(fut, rt),
             id,
-
             detached: false,
         }
     }
 
-    pub(crate) fn id(&self) -> usize {
+    pub(crate) fn id(&self) -> u64 {
         self.id
     }
 
-    pub(crate) fn poll(&self, cx: &mut Context) -> Poll<()> {
-        self.shared.task().poll(cx)
+    pub(crate) fn poll(&self, cx: &mut Context) {
+        self.shared.task().poll(cx);
     }
     /// Aborts the task. For the moment, it is not supported for a task
     /// to abort itself.

@@ -79,9 +79,9 @@ where
 /// Panics if called from the **outside** of an osiris async task.
 #[track_caller]
 #[must_use]
-pub fn id() -> usize {
+pub fn id() -> u64 {
     crate::runtime::TASK_ID
         .with(Clone::clone)
         .get()
-        .expect("called `task_id()` from the outside of an osiris task.")
+        .expect("called `task::id()` from the outside of an osiris task.")
 }

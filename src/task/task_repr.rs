@@ -66,27 +66,20 @@ impl<F: Future> RawTask for TaskRepr<F>
 where
     F::Output: 'static,
 {
-    fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()> {
+    fn runtime(&self) -> Runtime {
+        self.rt.clone()
+    }
+    fn poll(self: Pin<&Self>, cx: &mut Context) {
         let mut payload = self.payload.borrow_mut();
-        let Payload::Pending { fut } = &mut *payload else {
-            // we return ready so the task can be removed from the queue.
-            return Poll::Ready(());
-        };
-        // SAFETY:
-        // we can safely project the pin because the
-        // payload future is never moved.
-        // Also, safe code can't move the future because
-        // `TaskRepr` is !Unpin, and its contents are private,
-        // so it cannot be moved by safe code.
+        let Payload::Pending { fut } = &mut *payload else { return };
+        // Safety: we can safely project the pin because the payload
+        // future is never moved.
         let fut = unsafe { Pin::new_unchecked(fut) };
 
-        let Poll::Ready(output) = fut.poll(cx) else {
-            return  Poll::Pending;
-        };
+        let Poll::Ready(output) = fut.poll(cx) else { return };
         *payload = Payload::Ready { output };
         // let's wake the joining task.
         self.wake_join();
-        Poll::Ready(())
     }
 
     fn wake_join(&self) {
@@ -128,7 +121,7 @@ where
                         "attempted to join a task that has been aborted. This is a bug in osiris."
                     )
                 }
-                // SAFETY: we already checked for this case
+                // Safety: we already checked for this case
                 Payload::Pending { .. } => unsafe { unreachable_unchecked() },
             }
         }
@@ -157,7 +150,7 @@ where
         }
 
         let Payload::Panic{ error } = replace(&mut *task, Payload::Aborted) else {
-            // SAFETY: already checked for the case above
+            // Safety: already checked for the case above
             unsafe { unreachable_unchecked() }
         };
         // we don't want to abort the process by
