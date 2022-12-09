@@ -1,8 +1,9 @@
-use super::shared_task::Task;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+use super::Task;
 
 /// A handle to the spawned task. By default the task will be cancelled
 /// when the join handle gets dropped. In order to detach on drop the
@@ -10,7 +11,7 @@ use std::task::{Context, Poll};
 ///
 /// # Panics
 /// Awating a task will panic if the awaited task panicked.
-/// Dropping a task will atomatically cancel
+/// Dropping a task will atomatically cancel the spawned task.
 pub struct JoinHandle<T> {
     task: Task,
     detached: bool,
@@ -75,7 +76,7 @@ impl<T> Future for JoinHandle<T> {
         // The output type is the same as the JoinHandle since a
         // JoinHandle<T> cannot be constructed from a task of a
         // type different from T.
-        unsafe { self.task.raw.as_ref().poll_join(cx, ptr) };
+        unsafe { self.task.shared.task().poll_join(cx, ptr) };
         output
     }
 }

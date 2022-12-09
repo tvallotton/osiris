@@ -6,8 +6,7 @@ use osiris::task::{spawn, yield_now};
 fn install() {
     #[cfg(not(miri))]
     {
-        dotenv::dotenv();
-        color_eyre::install();
+        dotenv::dotenv().ok();
     }
 }
 

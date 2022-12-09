@@ -9,6 +9,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 use std::thread::panicking;
 
+use crate::runtime::Runtime;
+
 use super::raw_task::RawTask;
 
 pub(crate) struct TaskRepr<F: Future> {
@@ -17,6 +19,8 @@ pub(crate) struct TaskRepr<F: Future> {
     payload: RefCell<Payload<F>>,
     /// we store here the waker for the JoinHandle.
     pub join_waker: Cell<Option<Waker>>,
+    /// the runtime where the raw task was spawned in
+    rt: Runtime,
     _ph: PhantomPinned,
 }
 
@@ -29,11 +33,25 @@ pub(crate) enum Payload<F: Future> {
 }
 
 impl<F: Future> TaskRepr<F> {
-    pub fn new(fut: F) -> Self {
+    pub fn new(fut: F, rt: Runtime) -> Self {
         TaskRepr {
-            join_waker: Cell::default(),
             payload: RefCell::new(Payload::Pending { fut }),
+            join_waker: Cell::default(),
+            rt,
             _ph: PhantomPinned,
+        }
+    }
+}
+impl<F: Future> Payload<F> {
+    pub fn _replace(self: Pin<&mut Self>, payload: Payload<F>) -> Result<Payload<F>, Pin<&mut F>> {
+        // Safety: the pending future is never moved
+        match unsafe { self.get_unchecked_mut() } {
+            Self::Pending { fut } => {
+                // Safety: we project the pin
+                let fut = unsafe { Pin::new_unchecked(fut) };
+                Err(fut)
+            }
+            other => Ok(replace(other, payload)),
         }
     }
 }
@@ -129,7 +147,7 @@ where
             if panicking() {
                 return;
             }
-            panic!("A task attempted to abort itself. This is not supported, move the JoinHandle to another task or detach it if you don't want it to panic."); 
+            unimplemented!("A task attempted to abort itself. This is not supported at the moment, move the JoinHandle to another task or detach it if you don't want it to panic."); 
         };
 
         if !matches!(&*task, Payload::Panic { .. }) {
@@ -148,7 +166,7 @@ where
             resume_unwind(error);
         }
     }
-    fn panicked(self: Pin<&Self>, error: Box<dyn Any + Send>) {
+    fn panic(self: Pin<&Self>, error: Box<dyn Any + Send>) {
         let mut payload = self.payload.borrow_mut();
         *payload = Payload::Panic { error };
     }

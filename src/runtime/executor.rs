@@ -5,9 +5,11 @@ use crate::hasher::NoopHasher;
 use crate::task::Task;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::future::Future;
+use std::future::{poll_fn, Future};
+use std::mem::transmute;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
+use std::pin::Pin;
 use std::task::{Context, Poll};
 
 pub(crate) struct Executor {
@@ -57,6 +59,33 @@ impl Executor {
         waker(task_id).wake();
         future
     }
+
+    /// Spawns a non-'static future onto the runtime.
+    /// # Safety
+    /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned
+    /// task and its join handle. Otherwise, a use after free will occur.
+    #[must_use]
+    pub unsafe fn spawn_unchecked<F>(&self, future: Pin<&mut F>, rt: Runtime) -> Task
+    where
+        F: Future,
+    {
+        // SAFETY:
+        // this trick will let us upgrade the lifetime
+        // of F into a 'static lifetime. The caller must
+        // ensure this invariant is met.
+        let ptr: *mut () = unsafe { transmute(future) };
+
+        let future = poll_fn(move |cx| {
+            // SAFETY: explained in the transmute above.
+            let future: Pin<&mut F> = unsafe { transmute(ptr) };
+            future.poll(cx)
+        });
+        let task_id = self.task_id();
+        let task = Task::new(task_id, future, rt);
+        self.tasks.borrow_mut().insert(0, task.clone());
+        task
+    }
+
     /// It polls at most `ticks` futures. It may poll less futures than
     /// the specified number of ticks. If a future finishes or panics it will be
     /// permanently removed from the task queue.
@@ -96,7 +125,7 @@ impl Executor {
                     resume_unwind(error);
                 }
                 Err(error) => {
-                    task.panicked(error);
+                    task.panic(error);
                 }
             }
         }

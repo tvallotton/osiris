@@ -1,11 +1,10 @@
 use crate::runtime::waker::{main_waker, waker};
 use crate::shared_driver::SharedDriver;
-use crate::task::{JoinHandle, Task};
+use crate::task::JoinHandle;
 use executor::Executor;
 use std::cell::Cell;
-use std::future::{poll_fn, Future};
+use std::future::Future;
 use std::io;
-use std::mem::transmute;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::rc::Rc;
@@ -78,15 +77,6 @@ impl Runtime {
             driver,
         };
         Ok(rt)
-    }
-
-    /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
-    pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
-    where
-        F: Future + 'static,
-    {
-        let task = self.executor.spawn(future, self.clone());
-        JoinHandle::new(task)
     }
 
     /// Runs a future to completion on the osiris runtime. This is the
@@ -227,6 +217,14 @@ impl Runtime {
         Enter(rt, &())
     }
 
+    /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
+    pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
+    where
+        F: Future + 'static,
+    {
+        let task = self.executor.spawn(future, self.clone());
+        JoinHandle::new(task)
+    }
     /// Spawns a non-'static future onto the runtime.
     /// # Safety
     /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned
@@ -236,21 +234,8 @@ impl Runtime {
     where
         F: Future,
     {
-        // SAFETY:
-        // this trick will let us upgrade the lifetime
-        // of F into a 'static lifetime. The caller must
-        // ensure this invariant is met.
-        let ptr: *mut () = unsafe { transmute(future) };
-
-        let future = poll_fn(move |cx| {
-            // SAFETY: explained in the transmute above.
-            let future: Pin<&mut F> = unsafe { transmute(ptr) };
-            future.poll(cx)
-        });
-        let task_id = self.executor.task_id();
-        let task = Task::new(task_id, future, self.clone());
-        self.executor.tasks.borrow_mut().insert(0, task.clone());
-
+        // Safety: the invariants must be upheld by the caller.
+        let task = unsafe { self.executor.spawn_unchecked(future, self.clone()) };
         JoinHandle::new(task)
     }
 }

@@ -7,5 +7,5 @@ pub(crate) trait RawTask {
     fn abort(self: Pin<&Self>);
     fn poll(self: Pin<&Self>, cx: &mut Context) -> Poll<()>;
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, ptr: *mut ());
-    fn panicked(self: Pin<&Self>, error: Box<dyn Any + Send>);
+    fn panic(self: Pin<&Self>, error: Box<dyn Any + Send>);
 }
