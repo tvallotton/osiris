@@ -23,6 +23,7 @@ mod yield_now;
 pub(crate) type Task = SharedTask;
 
 impl Task {
+    #[inline]
     pub(crate) fn id(&self) -> u64 {
         self.meta().id
     }

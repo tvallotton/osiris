@@ -1,7 +1,8 @@
-use core::num;
 use std::cell::Cell;
-use std::panic::catch_unwind;
+use std::panic::{always_abort, catch_unwind};
+use std::process::abort;
 
+use osiris::detach;
 use osiris::runtime::block_on;
 use osiris::task::{spawn, yield_now};
 
@@ -55,14 +56,12 @@ fn joining_propagates_panics() {
     install();
     let result = catch_unwind(|| {
         block_on(async {
-            // joined JoinHandle propagates
             spawn(async {
-                // joined JoinHandle propagates
                 spawn(async { panic!("child panic") }).await;
             })
             .await;
         })
-        .unwrap()
+        .unwrap();
     });
     assert!(result.is_err());
 }
@@ -103,6 +102,7 @@ fn detach_handle_panic() {
             yield_now().await;
         })
         .await;
+        detach(async { panic!() });
         yield_now().await;
         yield_now().await;
     })
