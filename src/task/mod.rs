@@ -5,7 +5,7 @@ use std::any::Any;
 use std::task::{Context, Waker};
 
 pub use completion::complete;
-pub use fns::{id, spawn};
+pub use fns::{detach, id, spawn};
 pub use join_handle::JoinHandle;
 pub(crate) use waker::waker;
 pub use yield_now::yield_now;

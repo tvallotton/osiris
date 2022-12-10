@@ -51,13 +51,13 @@ fn spawn_on_abort() {
 
 // this function tests that panics are propagated across join handles.
 #[test]
-fn propagate_panic() {
+fn joining_propagates_panics() {
     install();
     let result = catch_unwind(|| {
         block_on(async {
             // joined JoinHandle propagates
             spawn(async {
-                // dropped JoinHandle propagates
+                // joined JoinHandle propagates
                 spawn(async { panic!("child panic") }).await;
             })
             .await;
@@ -67,6 +67,28 @@ fn propagate_panic() {
     assert!(result.is_err());
 }
 
+// this function tests that panics are propagated when dropping join handles
+#[test]
+fn dropped_join_handle_propagates_panics() {
+    install();
+    let result = catch_unwind(|| {
+        block_on(async {
+            let h = spawn(async {
+                let h = spawn(async { panic!("child panic") });
+                yield_now().await;
+                drop(h);
+            });
+            // we need to make sure to give
+            // some time for the tasks to be polled.
+            for _ in 0..10 {
+                yield_now().await;
+            }
+            drop(h);
+        })
+        .unwrap()
+    });
+    assert!(result.is_err());
+}
 // this function tests that panics aren't propagated across detached join handles.
 #[test]
 fn detach_handle_panic() {
@@ -97,28 +119,29 @@ fn detach_handle_panic() {
 }
 
 // this test makes sure a task can abort itself
-fn self_abort() {
-    todo!()
-}
-
 #[test]
-fn self_join() {
-    tokio::runtime::Builder::new_current_thread()
-        .build()
-        .unwrap()
-        .block_on(async {
-            let (tx, rx) = tokio::sync::oneshot::channel();
-
-            let h = tokio::spawn(async move {
-                let h = rx.await.unwrap();
-                println!("handler: {h:?}");
-                let number = h.await;
-                println!("number: {number:?}");
-                10
-            });
-            tx.send(h).unwrap();
-            for _ in 0..1000 {
-                yield_now().await;
-            }
-        });
+fn empty() {
+    block_on(async {});
 }
+
+// #[test]
+// fn self_join() {
+//     tokio::runtime::Builder::new_current_thread()
+//         .build()
+//         .unwrap()
+//         .block_on(async {
+//             let (tx, rx) = tokio::sync::oneshot::channel();
+
+//             let h = tokio::spawn(async move {
+//                 let h = rx.await.unwrap();
+//                 println!("handler: {h:?}");
+//                 let number = h.await;
+//                 println!("number: {number:?}");
+//                 10
+//             });
+//             tx.send(h).unwrap();
+//             for _ in 0..1000 {
+//                 yield_now().await;
+//             }
+//         });
+// }

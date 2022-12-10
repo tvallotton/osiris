@@ -1,9 +1,11 @@
 use super::{Config, Runtime};
 use crate::task::Task;
+use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::future::{poll_fn, Future};
 use std::mem::transmute;
+use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::task::Context;
 
@@ -16,6 +18,10 @@ pub(crate) struct Executor {
     /// A monotonically increasing counter for spawned tasks.
     /// It always corresponds to an available task id.
     pub(crate) task_id: Cell<u64>,
+}
+
+fn catch_unwind<T>(f: impl FnOnce() -> T) -> Result<T, Box<dyn Any + Send>> {
+    std::panic::catch_unwind(AssertUnwindSafe(f))
 }
 
 impl Executor {
@@ -89,7 +95,10 @@ impl Executor {
 
             let waker = task.clone().waker();
             let cx = &mut Context::from_waker(&waker);
-            task.poll(cx);
+
+            if let Err(payload) = catch_unwind(|| task.poll(cx)) {
+                task.panic(payload);
+            };
         }
     }
 

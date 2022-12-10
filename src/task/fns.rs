@@ -21,6 +21,7 @@ use std::future::Future;
 /// Panics if called from **outside** of an osiris runtime.
 ///
 #[track_caller]
+#[must_use = "osiris tasks are cancelled on drop, you may want to `.detach()` it."]
 pub fn spawn<F>(future: F) -> JoinHandle<<F as Future>::Output>
 where
     F: Future + 'static,

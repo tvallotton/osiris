@@ -28,11 +28,12 @@ fn unique_task_id() {
 fn spawn_can_be_joined() {
     let mut joined = false;
     block_on(async {
-        spawn(async {
+        let number = spawn(async {
             yield_now().await;
             1
         })
         .await;
+        assert_eq!(number, 1);
         joined = true;
     })
     .unwrap();

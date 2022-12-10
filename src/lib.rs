@@ -9,6 +9,8 @@
 #![allow(clippy::ptr_as_ptr)]
 #![allow(clippy::borrow_as_ptr)]
 
+pub use task::{detach, spawn};
+
 mod hasher;
 pub mod runtime;
 pub mod shared_driver;

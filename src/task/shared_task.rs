@@ -139,6 +139,7 @@ impl Drop for SharedTask {
         if count != 1 {
             return;
         }
+
         // we make sure the task is being dropped from the correct thread.
         assert_eq!(self.inner().thread_id, current().id(), "A panic occured because a waker was dropped from another thread. Make sure all wakers are dropped in the same thread they were spawned in.");
         atomic::fence(Acquire);
@@ -146,8 +147,11 @@ impl Drop for SharedTask {
         let task = &*self.task();
 
         let (layout, _) = alloc_layout(task);
+
         // Safety: we are the last reference, so it is ok to drop.
         unsafe { drop_in_place(self.inner().task as *mut dyn RawTask) };
+        // Safety: we are the last reference, so it is ok to drop.
+        unsafe { drop_in_place(self.data as *mut Inner) };
         // Safety: we own this allocation.
         unsafe { dealloc(self.data as _, layout) }
     }

@@ -155,5 +155,6 @@ where
     fn panic(self: Pin<&Self>, error: Box<dyn Any + Send>) {
         let mut payload = self.payload.borrow_mut();
         *payload = Payload::Panic { error };
+        self.wake_join_handle();
     }
 }

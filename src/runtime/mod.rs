@@ -5,7 +5,6 @@ use executor::Executor;
 use std::cell::Cell;
 use std::future::Future;
 use std::io;
-use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
@@ -16,7 +15,6 @@ pub(crate) use globals::{RUNTIME, TASK_ID};
 mod config;
 mod executor;
 mod globals;
-mod unique_queue;
 mod waker;
 
 type TaskId<'a> = &'a Cell<Option<u64>>;
@@ -134,10 +132,11 @@ impl Runtime {
 
         // # Safety:
         // This operation is safe because the task will not outlive the function scope.
-        // If the task is completed successfully, it will be removed from the task queue
-        // and the handle would be dropped too.
-        // On the other hand, if the main task panicked on `poll`, it will not have been
-        // returned to the task queue, and will have been dropped in the call to `Executor::poll`.
+        // If the task is completed successfully, the value will be taken and the future will
+        // have been dropped, and no uses after free will occur.
+        //
+        // On the other hand, if the main task panicked on `poll`, the future will also be dropped,
+        // and replaced with the panic payload.
         //
         // The handle is always dropped before this function returns regardless of wheather the
         // task panicked or not.
@@ -147,21 +146,7 @@ impl Runtime {
         // by polling the JoinHandle before polling the main task.
         self.executor.main_handle.set(true);
 
-        TASK_ID.with(|task_id| {
-            loop {
-                let event_loop = AssertUnwindSafe(|| self.event_loop(handle, task_id));
-                match catch_unwind(event_loop) {
-                    Ok(result) => return result,
-                    Err(error) => {
-                        // if the main task panicked we resume_unwind.
-                        // otherwise we catch it.
-                        if dbg!(task_id.get()) == dbg!(handle.id().into()) {
-                            resume_unwind(error);
-                        }
-                    }
-                }
-            }
-        })
+        TASK_ID.with(|task_id| self.event_loop(handle, task_id))
     }
     /// This is the main loop
     fn event_loop<T>(&self, handle: &mut JoinHandle<T>, task_id: TaskId) -> io::Result<T> {
