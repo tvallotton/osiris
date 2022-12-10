@@ -1,3 +1,4 @@
+use core::num;
 use std::cell::Cell;
 use std::panic::catch_unwind;
 
@@ -98,4 +99,26 @@ fn detach_handle_panic() {
 // this test makes sure a task can abort itself
 fn self_abort() {
     todo!()
+}
+
+#[test]
+fn self_join() {
+    tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            let h = tokio::spawn(async move {
+                let h = rx.await.unwrap();
+                println!("handler: {h:?}");
+                let number = h.await;
+                println!("number: {number:?}");
+                10
+            });
+            tx.send(h).unwrap();
+            for _ in 0..1000 {
+                yield_now().await;
+            }
+        });
 }

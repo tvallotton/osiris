@@ -40,7 +40,7 @@ impl Executor {
     {
         let mut queue = self.queue.borrow_mut();
         let task_id = self.task_id();
-        let task = Task::new(task_id, future, rt);
+        let task = Task::new(future, task_id, rt);
         queue.push_back(task.clone());
         task
     }

@@ -6,6 +6,7 @@
 )]
 use crate::runtime::Runtime;
 
+use super::meta::Metadata;
 use super::raw_task::RawTask;
 use super::task_repr::TaskRepr;
 use std::alloc::{dealloc, Layout};
@@ -37,6 +38,9 @@ struct Inner {
     thread_id: ThreadId,
     /// the reference count
     count: AtomicUsize,
+    /// metadata for the task.
+    meta: Metadata,
+    /// trait object pointing to the end of Inner
     task: *const dyn RawTask,
 }
 
@@ -48,9 +52,8 @@ unsafe impl Send for SharedTask {}
 /// The layout returned can be represented roughly as:
 /// ```
 /// struct Inner {
-///     thread_id: ThreadId,
-///     coint: AtomicUsize,
-///     task: *const dyn RawTask,
+///     /*  fields... */
+///     task: *const dyn RawTask, // points to -> `task_alloc`
 ///     task_alloc: dyn RawTask,
 /// }
 /// ```
@@ -64,22 +67,30 @@ fn alloc_layout<T: ?Sized>(task: &T) -> (Layout, isize) {
 
 impl SharedTask {
     /// Creates a new shared task.
-    pub fn new<F: Future + 'static>(f: F, rt: Runtime) -> Self {
-        let task = TaskRepr::new(f, rt);
-        SharedTask::from_raw_task(task)
+    pub fn new<F: Future + 'static>(f: F, id: u64, rt: Runtime) -> Self {
+        let meta = Metadata { id, rt };
+        let task = TaskRepr::new(f);
+        SharedTask::from_raw_task(task, meta)
     }
+    #[inline]
     pub fn into_ptr(self) -> *const () {
         let ptr = self.data.cast();
         forget(self);
         ptr
     }
 
+    #[inline]
+    pub fn meta(&self) -> Metadata {
+        self.inner().meta.clone()
+    }
+
     /// Takes a raw pointer and converts it into an owned [`SharedTask`]
+    #[inline]
     pub unsafe fn from_raw(ptr: *const ()) -> SharedTask {
         SharedTask { data: ptr.cast() }
     }
     /// Creates a new shared task from a raw task.
-    fn from_raw_task<T: RawTask + 'static>(value: T) -> Self {
+    fn from_raw_task<T: RawTask + 'static>(value: T, meta: Metadata) -> Self {
         let (alloc_layout, offset) = alloc_layout(&value);
 
         // Safety: the allocation size can't be zero because ArcInner isn't a ZST
@@ -89,10 +100,12 @@ impl SharedTask {
         unsafe {
             data.offset(offset).cast::<T>().write(value);
         };
+
         // drop(value);
         // Safety: we own the pointer and the layout is correct
         unsafe {
             data.cast::<Inner>().write(Inner {
+                meta,
                 thread_id: current().id(),
                 count: AtomicUsize::new(1),
                 task: data.offset(offset).cast::<T>() as *const dyn RawTask,
@@ -109,6 +122,7 @@ impl SharedTask {
         unsafe { &*self.data }
     }
 
+    #[inline]
     pub fn task(&self) -> Pin<&dyn RawTask> {
         let task = self.inner();
 

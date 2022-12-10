@@ -79,7 +79,7 @@ impl<T> Future for JoinHandle<T> {
         // The output type is the same as the JoinHandle since a
         // JoinHandle<T> cannot be constructed from a task of a
         // type different from T.
-        unsafe { self.task.shared.task().poll_join(cx, ptr) };
+        unsafe { self.task.task().poll_join(cx, ptr) };
         output
     }
 }

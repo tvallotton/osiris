@@ -22,15 +22,25 @@ const RAW_WAKER_VTABLE: RawWakerVTable = {
         forget(task);
         raw_waker(new.into_ptr())
     };
+
     let wake = |data| {
-        // Safety: same as above
+        // Safety: its the same as the input type
         let task = unsafe { SharedTask::from_raw(data) };
+        let executor = task.meta().rt.executor;
+        let mut queue = executor.queue.borrow_mut();
+        queue.push_back(task);
     };
+
     let wake_by_ref = |data| {
-        // Safety: same as above
+        // Safety: its the same as the input type
         let task = unsafe { SharedTask::from_raw(data) };
-        // let task = task.task().;
+        let new = task.clone();
+        new.waker().wake();
+        forget(task);
     };
-    let drop = |data| todo!();
+    let drop = |data| {
+        // Safety: its the same as the input type
+        unsafe { SharedTask::from_raw(data) };
+    };
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 };

@@ -1,3 +1,4 @@
+use super::raw_task::RawTask;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::future::Future;
@@ -9,18 +10,12 @@ use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
 use std::thread::panicking;
 
-use crate::runtime::Runtime;
-
-use super::raw_task::RawTask;
-
 pub(crate) struct TaskRepr<F: Future> {
     /// Even though strictly speaking cells do not pin project,
     /// we will consider the contents of this cell pinned.
     payload: RefCell<Payload<F>>,
     /// we store here the waker for the JoinHandle.
     pub join_waker: Cell<Option<Waker>>,
-    /// the runtime where the raw task was spawned in
-    rt: Runtime,
     _ph: PhantomPinned,
 }
 
@@ -33,11 +28,10 @@ pub(crate) enum Payload<F: Future> {
 }
 
 impl<F: Future> TaskRepr<F> {
-    pub fn new(fut: F, rt: Runtime) -> Self {
+    pub fn new(fut: F) -> Self {
         TaskRepr {
             payload: RefCell::new(Payload::Pending { fut }),
             join_waker: Cell::default(),
-            rt,
             _ph: PhantomPinned,
         }
     }
@@ -66,9 +60,6 @@ impl<F: Future> RawTask for TaskRepr<F>
 where
     F::Output: 'static,
 {
-    fn runtime(&self) -> Runtime {
-        self.rt.clone()
-    }
     fn poll(self: Pin<&Self>, cx: &mut Context) {
         let mut payload = self.payload.borrow_mut();
         let Payload::Pending { fut } = &mut *payload else { return };
@@ -79,17 +70,16 @@ where
         let Poll::Ready(output) = fut.poll(cx) else { return };
         *payload = Payload::Ready { output };
         // let's wake the joining task.
-        self.wake_join();
+        self.wake_join_handle();
     }
 
-    fn wake_join(&self) {
+    fn wake_join_handle(&self) {
         let Some(waker) = self.join_waker.take() else {
             return;
         };
         waker.wake_by_ref();
         self.join_waker.set(Some(waker));
     }
-
     /// # Safety
     /// The caller must uphold that the pointer `out: *mut ()` points to a valid
     /// memory location of the type `Poll<F::Output>`, where `F` is the spawned
@@ -98,7 +88,10 @@ where
     unsafe fn poll_join(self: Pin<&Self>, cx: &mut Context, out: *mut ()) {
         self.insert_waker(cx);
         // we must be careful not to accidentally move the task here.
-        let payload = &mut *self.payload.borrow_mut();
+        let payload = &mut *self
+            .payload
+            .try_borrow_mut()
+            .expect("A task attempted to join iteself. This behavior is not supported.");
         if !matches!(payload, Payload::Pending { .. }) {
             // we can move anything now that we know the pin ended.
             let payload = replace(payload, Payload::Taken);
@@ -145,7 +138,7 @@ where
 
         if !matches!(&*task, Payload::Panic { .. }) {
             *task = Payload::Aborted;
-            self.wake_join();
+            self.wake_join_handle();
             return;
         }
 
