@@ -195,10 +195,11 @@ impl Runtime {
     where
         F: Future + 'static,
     {
-        let task = self.executor.spawn(future, self.clone());
+        let task = self.executor.spawn(future, self.clone(), false);
         // Safety: both types are F::Output
         unsafe { JoinHandle::new(task) }
     }
+
     /// Spawns a non-'static future onto the runtime.
     /// # Safety
     /// The caller must guarantee that the `future: Pin<&mut F>` must outlive the spawned

@@ -40,13 +40,14 @@ impl Executor {
         task_id
     }
 
-    pub fn spawn<F>(&self, future: F, rt: Runtime) -> Task
+    /// Spawns a task onto the executor
+    pub fn spawn<F>(&self, future: F, rt: Runtime, ignore_abort: bool) -> Task
     where
         F: Future + 'static,
     {
         let mut queue = self.queue.borrow_mut();
         let task_id = self.task_id();
-        let task = Task::new(future, task_id, rt);
+        let task = Task::new(future, task_id, rt, ignore_abort);
         queue.push_back(task.clone());
         task
     }
@@ -71,12 +72,11 @@ impl Executor {
             let future: Pin<&mut F> = unsafe { transmute(ptr) };
             future.poll(cx)
         });
-        self.spawn(future, rt)
+        self.spawn(future, rt, false)
     }
 
     /// It polls at most `ticks` futures. It may poll less futures than
-    /// the specified number of ticks. If a future finishes or panics it will be
-    /// permanently removed from the task queue.
+    /// the specified number of ticks.
     #[inline]
     pub fn poll(&self, ticks: u32, task_id: &Cell<Option<u64>>) {
         for _ in 0..ticks {

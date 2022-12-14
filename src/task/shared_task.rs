@@ -67,8 +67,12 @@ fn alloc_layout<T: ?Sized>(task: &T) -> (Layout, isize) {
 
 impl SharedTask {
     /// Creates a new shared task.
-    pub fn new<F: Future + 'static>(f: F, id: u64, rt: Runtime) -> Self {
-        let meta = Metadata { id, rt };
+    pub fn new<F: Future + 'static>(f: F, id: u64, rt: Runtime, ignore_abort: bool) -> Self {
+        let meta = Metadata {
+            id,
+            rt,
+            ignore_abort,
+        };
         let task = TaskRepr::new(f);
         SharedTask::from_raw_task(task, meta)
     }
@@ -179,7 +183,7 @@ fn thread_safety_stress_test() {
     }
 
     let rt = Runtime::new().unwrap();
-    let last_task = SharedTask::new(async {}, 1, rt);
+    let last_task = SharedTask::new(async {}, 1, rt, false);
     let task = last_task.clone();
 
     std::thread::scope(move |s| {

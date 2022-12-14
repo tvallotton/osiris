@@ -1,5 +1,5 @@
 #![allow(incomplete_features)]
-#![deny(warnings)]
+// #![deny(warnings)]
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
 #![warn(clippy::pedantic)]

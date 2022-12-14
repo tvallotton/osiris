@@ -32,7 +32,9 @@ impl Task {
     /// Aborts the task. For the moment, it is not supported for a task
     /// to abort itself.
     pub(crate) fn abort(&self) {
-        self.task().abort();
+        if !self.meta().ignore_abort {
+            self.task().abort();
+        }
     }
     /// Sets the panic payload for the task in case it panicked while being polled
     pub(crate) fn panic(&self, payload: Box<dyn Any + Send>) {
