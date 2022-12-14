@@ -68,15 +68,7 @@ impl Runtime {
     /// This function errors if the io-ring could not be allocated.
     ///
     pub fn new() -> io::Result<Runtime> {
-        let config = Config::default();
-        let executor = Rc::new(Executor::new(config.clone()));
-        let driver = SharedDriver::new(config.clone())?;
-        let rt = Runtime {
-            config,
-            executor,
-            driver,
-        };
-        Ok(rt)
+        Config::default().build()
     }
 
     /// Runs a future to completion on the osiris runtime. This is the

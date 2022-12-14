@@ -19,7 +19,7 @@ use std::sync::atomic::{self, AtomicUsize};
 use std::thread::{current, ThreadId};
 
 /// This is a manually reference counted task. It is intended
-/// to work as an Arc<dyn Task>, except it is a thin pointer, so
+/// to work as an `Arc<dyn Task>`, except it is a thin pointer, so
 /// it fits in the Waker's `data: *const ()` field in a single
 /// allocation.
 ///
@@ -50,7 +50,7 @@ unsafe impl Send for SharedTask {}
 
 /// Takes a task and it returns the layout required for the allocation.
 /// The layout returned can be represented roughly as:
-/// ```
+/// ```ignore
 /// struct Inner {
 ///     /*  fields... */
 ///     task: *const dyn RawTask, // points to -> `task_alloc`
@@ -162,4 +162,42 @@ impl Clone for SharedTask {
         self.inner().count.fetch_add(1, Relaxed);
         SharedTask { data: self.data }
     }
+}
+
+#[test]
+fn thread_safety_stress_test() {
+    // use crate::runtime::Runtime;
+    use std::time::Instant;
+    const N_THREADS: usize = 10;
+    #[cfg(not(miri))]
+    const ITERATIONS: usize = 10000;
+    #[cfg(miri)]
+    const ITERATIONS: usize = 1000;
+    fn random() -> bool {
+        thread_local! {static START : Instant =Instant::now() };
+        START.with(|time| time.elapsed().as_nanos() % 61 < 61 / 2)
+    }
+
+    let rt = Runtime::new().unwrap();
+    let last_task = SharedTask::new(async {}, 1, rt);
+    let task = last_task.clone();
+
+    std::thread::scope(move |s| {
+        for _ in 0..N_THREADS {
+            let task = task.clone();
+            s.spawn(move || {
+                let mut clones = vec![];
+                for _ in 0..ITERATIONS {
+                    if random() {
+                        clones.push(task.clone());
+                    } else {
+                        clones.pop();
+                    }
+                }
+            });
+        }
+        drop(task);
+    });
+    // we drop the last task in the original thread
+    drop(last_task);
 }

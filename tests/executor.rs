@@ -1,16 +1,69 @@
 use std::cell::Cell;
-use std::panic::{always_abort, catch_unwind};
-use std::process::abort;
+use std::panic::catch_unwind;
+use std::rc::Rc;
 
 use osiris::detach;
 use osiris::runtime::block_on;
 use osiris::task::{spawn, yield_now};
+
+use osiris::task::{self};
 
 fn install() {
     #[cfg(not(miri))]
     {
         dotenv::dotenv().ok();
     }
+}
+
+async fn stall() {
+    for _ in 0..10 {
+        yield_now().await;
+    }
+}
+
+#[test]
+fn test_spawn() {
+    let spawned = Rc::new(Cell::new(false));
+
+    block_on(async {
+        let spawned = spawned.clone();
+        let value = spawn(async move {
+            spawned.set(true);
+            10
+        })
+        .await;
+        assert_eq!(value, 10);
+    })
+    .unwrap();
+    assert!(spawned.get());
+}
+// This thest makes sure the task id function returns different values for different tasks
+#[test]
+fn unique_task_id() {
+    block_on(async {
+        let task_id = task::id();
+        spawn(async move {
+            assert_ne!(task_id, task::id());
+        })
+        .await;
+    })
+    .unwrap();
+}
+/// This test makes sure task can be spawned, and they are joined.
+#[test]
+fn spawn_can_be_joined() {
+    let mut joined = false;
+    block_on(async {
+        let number = spawn(async {
+            yield_now().await;
+            1
+        })
+        .await;
+        assert_eq!(number, 1);
+        joined = true;
+    })
+    .unwrap();
+    assert!(joined);
 }
 
 /// This tests makes sure a task can spawn other tasks on abort
@@ -35,24 +88,20 @@ fn spawn_on_abort() {
     block_on(async move {
         let handle = spawn(async {
             let _span_on_drop = SpawnOnDrop;
-            loop {
-                yield_now().await;
-            }
-        });
-        yield_now().await;
-        handle.abort();
-        for _ in 0..64 {
             yield_now().await;
-        }
+        });
+        stall().await;
+        handle.abort();
+        stall().await;
     })
     .unwrap();
     // make sure the spawned task runned.
     assert!(SUCCESS.with(|val| val.get()))
 }
 
-// this function tests that panics are propagated across join handles.
+// this function tests that panics are propagated when joining join handles.
 #[test]
-fn joining_propagates_panics() {
+fn joining_join_handle_propagates_panics() {
     install();
     let result = catch_unwind(|| {
         block_on(async {
@@ -74,14 +123,10 @@ fn dropped_join_handle_propagates_panics() {
         block_on(async {
             let h = spawn(async {
                 let h = spawn(async { panic!("child panic") });
-                yield_now().await;
+                stall().await;
                 drop(h);
             });
-            // we need to make sure to give
-            // some time for the tasks to be polled.
-            for _ in 0..10 {
-                yield_now().await;
-            }
+            stall().await;
             drop(h);
         })
         .unwrap()
@@ -98,13 +143,11 @@ fn detach_handle_panic() {
         spawn(async {
             let mut handle = spawn(async { panic!("child panic") });
             handle.detach();
-            yield_now().await;
-            yield_now().await;
+            stall().await;
         })
         .await;
         detach(async { panic!() });
-        yield_now().await;
-        yield_now().await;
+        stall().await;
     })
     .unwrap();
     // test for main task
@@ -113,35 +156,7 @@ fn detach_handle_panic() {
             panic!("child panic");
         });
         handle.detach();
-        yield_now().await;
+        stall().await;
     })
     .unwrap();
 }
-
-// this test makes sure a task can abort itself
-#[test]
-fn empty() {
-    block_on(async {});
-}
-
-// #[test]
-// fn self_join() {
-//     tokio::runtime::Builder::new_current_thread()
-//         .build()
-//         .unwrap()
-//         .block_on(async {
-//             let (tx, rx) = tokio::sync::oneshot::channel();
-
-//             let h = tokio::spawn(async move {
-//                 let h = rx.await.unwrap();
-//                 println!("handler: {h:?}");
-//                 let number = h.await;
-//                 println!("number: {number:?}");
-//                 10
-//             });
-//             tx.send(h).unwrap();
-//             for _ in 0..1000 {
-//                 yield_now().await;
-//             }
-//         });
-// }

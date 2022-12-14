@@ -4,13 +4,12 @@ use std::collections::HashMap;
 use std::io;
 use std::task::Waker;
 
-use crate::hasher::NoopHasher;
 use crate::runtime::Config;
 
 #[non_exhaustive]
 pub(crate) struct Driver {
     /// the wakers for tasks listening for IO.
-    wakers: HashMap<u64, Waker, NoopHasher>,
+    wakers: HashMap<u64, Waker>,
     /// this value always corresponds to an available id.
     /// This id will be stored in io-uring's `user_data` attribute
     event_id: u64,
@@ -22,10 +21,7 @@ impl Driver {
     /// creates a new driver.
     #[allow(unused_variables)]
     pub fn new(config: Config) -> io::Result<Driver> {
-        let wakers = {
-            let hasher = NoopHasher::default();
-            HashMap::with_capacity_and_hasher(Config::DEFAULT_WAKERS, hasher)
-        };
+        let wakers = { HashMap::with_capacity(config.init_capacity) };
         #[cfg(target_os = "linux")]
         let io_uring = config.io_uring()?;
 

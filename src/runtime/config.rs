@@ -25,7 +25,6 @@ use io_uring::IoUring;
 /// # Ok(())}
 /// ```
 #[derive(Clone, Debug)]
-#[non_exhaustive]
 pub struct Config {
     /// Sets the number of scheduler ticks after which the scheduler will poll for
     /// external events (timers, I/O, and so on).
@@ -62,7 +61,14 @@ pub struct Config {
     /// is better. When the runtime is going to be used for a single io-event then a smaller value
     /// is best. It defaults to 4096.
     pub init_capacity: usize,
+
+    // Do not use this field. Changes related to this field are considered breaking changes.
+    // To construct a value of this type use `Config::default()`. Additional fiels may be added
+    // any time
+    #[doc(hidden)]
+    pub do_not_use_this_field: (),
 }
+
 /// Determines whether the kernel will be notified for events, or whether it will be continuously
 /// polling for events.
 #[derive(Clone, Debug, Default)]
@@ -92,13 +98,12 @@ impl Default for Config {
             #[cfg(target_os = "linux")]
             mode: Mode::default(),
             init_capacity: 4096,
+            do_not_use_this_field: (),
         }
     }
 }
 
 impl Config {
-    pub const DEFAULT_WAKERS: usize = 2048;
-
     /// Creates the configured Runtime.
     /// The returned Runtime instance is ready to spawn tasks.
     ///

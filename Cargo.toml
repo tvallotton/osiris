@@ -16,4 +16,3 @@ io-uring = { version = "0.5.6" }
 
 [dev-dependencies]
 dotenv = "0.15.0"
-tokio = { version = "*", features = ["full"] }
