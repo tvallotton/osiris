@@ -1,3 +1,2 @@
-pub use mutex::Mutex;
-
-pub mod mutex;
+pub use mutex::{Guard as MutexGuard, Mutex};
+mod mutex;

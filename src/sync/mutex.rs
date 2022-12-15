@@ -6,6 +6,18 @@ use std::future::poll_fn;
 use std::ops::{Deref, DerefMut};
 use std::task::{Poll, Waker};
 
+/// A mutual exclusion primitive useful for protecting shared data.
+/// This mutex will block tasks waiting for the lock to become available.
+/// The mutex can be created via a new constructor. Each mutex has a type
+/// parameter which represents the data that it is protecting. The data can
+/// only be accessed through the RAII guards returned from `lock` and `try_lock`,
+/// which guarantees that the data is only ever accessed when the mutex is locked.
+///
+///  Unlike the `std::sync::Mutex` or the `tokio::sync::Mutex`, this `Mutex` does
+/// not implement the `Send` and `Sync` traits. That is because this mutex's purpose
+/// is to synchronize tasks, while those other mutexes are used to synchronize threads.
+/// In general synchronizing tasks is cheaper than synchronizing threads. So generally,
+/// when working with osiris tasks, this mutex should be preferred over std's or tokio's.
 #[derive(Default)]
 pub struct Mutex<T> {
     waiters: RefCell<VecDeque<(u64, Waker)>>,
@@ -17,7 +29,10 @@ struct Handle<'a, T> {
     mutex: &'a Mutex<T>,
     id: u64,
 }
-
+/// An RAII implementation of a “scoped lock” of a mutex.  When this structure
+/// is dropped (falls out of scope),  the lock will be unlocked. The data
+/// protected by the mutex can be accessed through this guard via its Deref and `DerefMut`
+/// implementations. This structure is created by the `lock` and `try_lock` methods on `Mutex`.
 pub struct Guard<'a, T> {
     value: RefMut<'a, T>,
     mutex: &'a Mutex<T>,
@@ -78,15 +93,50 @@ impl<'a, T> Drop for Handle<'a, T> {
 }
 
 impl<T> Mutex<T> {
-    // Creates a new lock in an unlocked state ready for use.
-    fn new(value: T) -> Mutex<T> {
+    /// Creates a new mutex in an unlocked state ready for use.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use osiris::sync::Mutex;
+    ///
+    /// let mutex = Mutex::new(0);
+    /// ```
+    pub fn new(value: T) -> Mutex<T> {
         Mutex {
             waiters: RefCell::default(),
             waiter_id: Cell::default(),
             value: RefCell::new(value),
         }
     }
-    // A future that resolves on acquiring the lock and returns the MutexGuard.
+    /// Acquires a mutex.
+    ///
+    /// This function will wait until the current task is able to acquire
+    /// the mutex. Upon returning, the task is the only future with the lock
+    /// held. An RAII guard is returned to allow scoped unlock of the lock. When
+    /// the guard goes out of scope, the mutex will be unlocked.
+    ///
+    ///  Unlike the `std::sync::Mutex` or the `tokio::sync::Mutex`, this `Mutex` does
+    /// not implement the `Send` and `Sync` traits. That is because this mutex's purpose
+    /// is to synchronize tasks, while those other mutexes are used to synchronize threads.
+    /// In general synchronizing tasks is cheaper than synchronizing threads. So generally,
+    /// when working with osiris tasks, this mutex should be preferred over std's or tokio's.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use osiris::task;
+    ///
+    /// let mutex = Rc::new(Mutex::new(0));
+    /// let c_mutex = Rc::clone(&mutex);
+    /// # block_on(async move {
+    /// spawn(async move {
+    ///     *c_mutex.lock().unwrap() = 10;
+    /// }).await;
+    /// assert_eq!(*mutex.lock().await, 10);
+    /// # });
+    /// ```
     pub async fn lock(&self) -> Guard<'_, T> {
         let mut handle: Option<Handle<T>> = None;
         yield_now().await;
@@ -105,7 +155,39 @@ impl<T> Mutex<T> {
         .await
     }
 
-    fn try_lock(&self) -> Result<Guard<'_, T>, Error> {
+    /// Attempts to acquire this lock.
+    ///
+    /// If the lock could not be acquired at this time, then [`Err`] is returned.
+    /// Otherwise, an RAII guard is returned. The lock will be unlocked when the
+    /// guard is dropped.
+    ///
+    /// # Errors
+    ///
+    /// If the mutex could not be acquired because it is already locked, then
+    /// this call will return an error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use osiris::block_on;
+    /// use std::rc::Rc;
+    /// use osiris::{sync::Mutex, spawn};
+    ///
+    /// let mutex = Rc::new(Mutex::new(0));
+    /// let c_mutex = Rc::clone(&mutex);
+    /// # block_on(async {
+    /// spawn(async move {
+    ///     let mut lock = c_mutex.try_lock();
+    ///     if let Ok(ref mut mutex) = lock {
+    ///         **mutex = 10;
+    ///     } else {
+    ///         println!("try_lock failed");
+    ///     }
+    /// }).await;
+    /// assert_eq!(*mutex.lock().await, 10);
+    /// # }).unwrap();
+    /// ```
+    pub fn try_lock(&self) -> Result<Guard<'_, T>, Error> {
         let Ok(value) = self.value.try_borrow_mut() else {
             return Err(Error(()));
         };
