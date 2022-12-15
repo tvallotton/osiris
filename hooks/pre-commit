@@ -1,4 +1,3 @@
 #!/bin/sh
 
-cargo clippy
-cargo +nightly fmt
+cargo clippy && cargo +nightly fmt

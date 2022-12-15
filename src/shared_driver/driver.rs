@@ -5,6 +5,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io;
 use std::ops::ControlFlow;
+use std::ops::ControlFlow::*;
 use std::task::{Poll, Waker};
 
 use crate::runtime::Config;
@@ -52,9 +53,23 @@ impl Driver {
         self.io_uring.submit_and_wait(1)?;
         Ok(())
     }
-    // TODO
+
     pub fn wake_tasks(&mut self) {
-        let _ = self;
+        #[cfg(target_os = "linux")]
+        {
+            let cqueue = self.io_uring.completion();
+            for cevent in cqueue {
+                let Entry::Occupied(mut entry) = self.wakers.entry(cevent.user_data()) else {
+                    // TODO?
+                    unreachable!()
+                };
+                let Continue(waker) = entry.insert(Break(cevent)) else {
+                    // TODO?
+                    unreachable!()
+                };
+                waker.wake();
+            }
+        }
     }
 
     #[inline]

@@ -15,3 +15,5 @@ pub use task::{detach, spawn};
 pub mod runtime;
 pub mod shared_driver;
 pub mod task;
+#[cfg(target_os = "linux")]
+pub mod time;

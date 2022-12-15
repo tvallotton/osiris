@@ -162,11 +162,10 @@ impl Runtime {
                     return Ok(out);
                 }
             }
-
             executor.poll(config.event_interval, task_id);
 
             driver.wake_tasks();
-            if executor.is_idle() {
+            if executor.is_idle() && !executor.main_handle.get() {
                 driver.submit_and_wait()?;
             } else {
                 driver.submit_and_yield()?;

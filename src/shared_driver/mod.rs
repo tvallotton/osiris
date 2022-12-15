@@ -12,6 +12,8 @@ use std::task::{Context, Poll};
 mod driver;
 #[cfg(target_os = "linux")]
 mod event;
+#[cfg(target_os = "linux")]
+pub(crate) use event::submit;
 
 /// The driver stores the wakers for all the tasks that
 /// are waiting for IO and it will wake them when it is
