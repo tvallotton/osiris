@@ -140,7 +140,7 @@ impl<T: IoBufMut> ops::DerefMut for Slice<T> {
         &mut buf_bytes[self.begin..end]
     }
 }
-
+// Safety: pointer stability is guaranteed by T's IoBuf implementation
 unsafe impl<T: IoBuf> IoBuf for Slice<T> {
     fn stable_ptr(&self) -> *const u8 {
         super::deref(&self.buf)[self.begin..].as_ptr()
@@ -154,13 +154,14 @@ unsafe impl<T: IoBuf> IoBuf for Slice<T> {
         self.end - self.begin
     }
 }
-
+// Safety: pointer stability is guaranteed by T's IoBufMut implementation
 unsafe impl<T: IoBufMut> IoBufMut for Slice<T> {
     fn stable_mut_ptr(&mut self) -> *mut u8 {
         super::deref_mut(&mut self.buf)[self.begin..].as_mut_ptr()
     }
 
     unsafe fn set_init(&mut self, pos: usize) {
-        self.buf.set_init(self.begin + pos);
+        // Safety: invariants are upheld by the caller
+        unsafe { self.buf.set_init(self.begin + pos) }
     }
 }

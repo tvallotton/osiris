@@ -88,7 +88,7 @@ pub unsafe trait IoBuf: Unpin + 'static {
         Slice::new(self, begin, end)
     }
 }
-
+// Safety: Vec<u8> allocates memory which is stable.
 unsafe impl IoBuf for Vec<u8> {
     fn stable_ptr(&self) -> *const u8 {
         self.as_ptr()
@@ -102,7 +102,7 @@ unsafe impl IoBuf for Vec<u8> {
         self.capacity()
     }
 }
-
+// Safety: static references are stable
 unsafe impl IoBuf for &'static [u8] {
     fn stable_ptr(&self) -> *const u8 {
         self.as_ptr()
@@ -116,7 +116,7 @@ unsafe impl IoBuf for &'static [u8] {
         self.bytes_init()
     }
 }
-
+// Safety: static references are stable
 unsafe impl IoBuf for &'static str {
     fn stable_ptr(&self) -> *const u8 {
         self.as_ptr()
