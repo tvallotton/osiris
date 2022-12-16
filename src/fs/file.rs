@@ -1,17 +1,25 @@
 #![allow(clippy::missing_errors_doc, warnings)]
+
+use io_uring::types::Fd;
+
+use crate::buf::{deref, IoBuf};
+use crate::detach;
+use crate::shared_driver::submit;
 use crate::sync::Mutex;
 use std::io;
 use std::path::Path;
+use std::sync::MutexGuard;
 
 use super::OpenOptions;
 
 pub struct File {
-    pub(crate) fd: Mutex<i32>,
+    pub(crate) fd: Option<i32>,
 }
 
 impl Drop for File {
     fn drop(&mut self) {
-        todo!()
+        let Some(fd) = self.fd.take() else { return; };
+        detach(async move { File { fd: Some(fd) }.close().await });
     }
 }
 
@@ -154,7 +162,76 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn close(self) -> io::Result<()> {
-        todo!()
+
+    pub async fn close(mut self) -> io::Result<()> {
+        use crate::shared_driver::submit;
+        use io_uring::types::Fd;
+        let fd = self.fd.unwrap();
+        let entry = io_uring::opcode::Close::new(Fd(fd)).build();
+        let (entry, _) = unsafe { submit(entry, ()).await };
+        entry?;
+        Ok(())
+    }
+
+    /// Write a buffer into this file at the specified offset, returning how
+    /// many bytes were written.
+    ///
+    /// This function will attempt to write the entire contents of `buf`, but
+    /// the entire write may not succeed, or the write may also generate an
+    /// error. The bytes will be written starting at the specified offset.
+    ///
+    /// # Return
+    ///
+    /// The method returns the operation result and the same buffer value passed
+    /// in as an argument. A return value of `0` typically means that the
+    /// underlying file is no longer able to accept bytes and will likely not be
+    /// able to in the future as well, or that the buffer provided is empty.
+    ///
+    /// # Errors
+    ///
+    /// Each call to `write` may generate an I/O error indicating that the
+    /// operation could not be completed. If an error is returned then no bytes
+    /// in the buffer were written to this writer.
+    ///
+    /// It is **not** considered an error if the entire buffer could not be
+    /// written to this writer.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs::File;
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let file = File::create("foo.txt").await?;
+    ///
+    ///     // Writes some prefix of the byte string, not necessarily all of it.
+    ///     let (res, _) = file.write_at(&b"some bytes"[..], 0).await;
+    ///     let n = res?;
+    ///
+    ///     println!("wrote {} bytes", n);
+    ///
+    ///     // Close the file
+    ///     file.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// [`Ok(n)`]: Ok
+    pub async fn write_at<T: IoBuf>(&mut self, buf: T, pos: usize) -> (io::Result<usize>, T) {
+        use io_uring::opcode::Write;
+
+        let fd = self.fd.unwrap();
+        let len = buf.bytes_init();
+        let buf = buf.slice(pos..len);
+
+        let entry = Write::new(Fd(fd), buf.stable_ptr(), buf.len() as _).build();
+
+        match unsafe { submit(entry, buf).await } {
+            (Err(err), buf) => {
+                return (Err(err), buf.into_inner());
+            }
+            (Ok(entry), buf) => (Ok(entry.result() as _), buf.into_inner()),
+        }
     }
 }

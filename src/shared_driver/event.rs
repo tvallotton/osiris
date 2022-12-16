@@ -30,18 +30,18 @@ pub struct Event<T: 'static> {
     requires_cancel: bool,
 }
 
-type Sub<T> = Result<(cqueue::Entry, T), io::Error>;
+type Sub<T> = (Result<cqueue::Entry, io::Error>, T);
 
 impl<T> Unpin for Event<T> {}
 
 impl<T> Future for Event<T> {
-    type Output = Result<(cqueue::Entry, T), io::Error>;
+    type Output = Sub<T>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(entry) = self.entry.take() {
             // Safety: invariants upheld at construction
             match unsafe { self.driver.push(entry) } {
                 Ok(id) => self.id = id,
-                Err(err) => return Poll::Ready(Err(err)),
+                Err(err) => return Poll::Ready((Err(err), self.data.take().unwrap())),
             };
             self.requires_cancel = true;
         }
@@ -51,7 +51,7 @@ impl<T> Future for Event<T> {
         };
         self.requires_cancel = false;
         let data = self.data.take().unwrap();
-        Poll::Ready(Ok((entry, data)))
+        Poll::Ready((Ok(entry), data))
     }
 }
 

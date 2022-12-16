@@ -17,7 +17,7 @@ pub fn sleep(time: Duration) -> impl Future<Output = ()> + Unpin {
     // Safety:
     let mut event = unsafe { submit(entry, timespec) };
     poll_fn(move |cx| {
-        ready!(Pin::new(&mut event).poll(cx)).unwrap();
+        ready!(Pin::new(&mut event).poll(cx)).0.unwrap();
         Poll::Ready(())
     })
 }

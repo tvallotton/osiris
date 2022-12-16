@@ -34,7 +34,6 @@ pub unsafe trait IoBufMut: IoBuf {
 }
 
 // Safety: Vec<u8> is always an allocated buffer, which is stable
-
 unsafe impl IoBufMut for Vec<u8> {
     fn stable_mut_ptr(&mut self) -> *mut u8 {
         self.as_mut_ptr()

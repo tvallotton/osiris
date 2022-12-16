@@ -304,8 +304,6 @@ impl OpenOptions {
         use io_uring::opcode::OpenAt;
         use io_uring::types;
 
-        use crate::sync::Mutex;
-
         let path = path.as_ref().as_os_str().as_bytes();
         let pathname = CString::new(path)?;
         let flags = libc::O_CLOEXEC | self.access_mode()? | self.creation_mode()?;
@@ -316,10 +314,10 @@ impl OpenOptions {
             .mode(self.mode)
             .build();
         // Safety: the resource (pathname) is submitted
-        let (entry, _) = unsafe { submit(entry, pathname) }.await?;
+        let (entry, _) = unsafe { submit(entry, pathname) }.await;
 
         Ok(File {
-            fd: Mutex::new(entry.result()),
+            fd: Some(entry?.result()),
         })
     }
 
