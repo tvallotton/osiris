@@ -6,5 +6,5 @@ services:
     volumes:
       - ./:/home/osiris
     command: "tail -f /dev/null"
-    privileged: true
+    privileged: false
     tty: true
