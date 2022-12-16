@@ -1,14 +1,15 @@
-#![allow(clippy::missing_errors_doc, warnings)]
+#![allow(clippy::missing_errors_doc)]
 
-use io_uring::types::Fd;
+use crate::buf::{IoBuf, IoBufMut};
 
-use crate::buf::{deref, IoBuf};
+#[cfg(target_os = "linux")]
+use io_uring::{opcode::*, types, types::Fd};
+
 use crate::detach;
 use crate::shared_driver::submit;
-use crate::sync::Mutex;
+
 use std::io;
 use std::path::Path;
-use std::sync::MutexGuard;
 
 use super::OpenOptions;
 
@@ -163,11 +164,10 @@ impl File {
     /// }
     /// ```
 
-    pub async fn close(mut self) -> io::Result<()> {
-        use crate::shared_driver::submit;
-        use io_uring::types::Fd;
+    pub async fn close(self) -> io::Result<()> {
         let fd = self.fd.unwrap();
         let entry = io_uring::opcode::Close::new(Fd(fd)).build();
+        // Safety: no resources need to be tracked
         let (entry, _) = unsafe { submit(entry, ()).await };
         entry?;
         Ok(())
@@ -219,19 +219,155 @@ impl File {
     ///
     /// [`Ok(n)`]: Ok
     pub async fn write_at<T: IoBuf>(&mut self, buf: T, pos: usize) -> (io::Result<usize>, T) {
-        use io_uring::opcode::Write;
+        let Some(fd) = self.fd else { unreachable!() };
 
-        let fd = self.fd.unwrap();
         let len = buf.bytes_init();
         let buf = buf.slice(pos..len);
 
-        let entry = Write::new(Fd(fd), buf.stable_ptr(), buf.len() as _).build();
-
+        let entry = Write::new(Fd(fd), buf.stable_ptr(), buf.len() as _)
+            .offset(pos as _)
+            .build();
+        // Safety: the buffer is guarded by submit
         match unsafe { submit(entry, buf).await } {
-            (Err(err), buf) => {
-                return (Err(err), buf.into_inner());
-            }
+            (Err(err), buf) => (Err(err), buf.into_inner()),
             (Ok(entry), buf) => (Ok(entry.result() as _), buf.into_inner()),
         }
+    }
+
+    /// Read some bytes at the specified offset from the file into the specified
+    /// buffer, returning how many bytes were read.
+    ///
+    /// # Return
+    ///
+    /// The method returns the operation result and the same buffer value passed
+    /// as an argument.
+    ///
+    /// If the method returns [`Ok(n)`], then the read was successful. A nonzero
+    /// `n` value indicates that the buffer has been filled with `n` bytes of
+    /// data from the file. If `n` is `0`, then one of the following happened:
+    ///
+    /// 1. The specified offset is the end of the file.
+    /// 2. The buffer specified was 0 bytes in length.
+    ///
+    /// It is not an error if the returned value `n` is smaller than the buffer
+    /// size, even when the file contains enough data to fill the buffer.
+    ///
+    /// # Errors
+    ///
+    /// If this function encounters any form of I/O or other error, an error
+    /// variant will be returned. The buffer is returned on error.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs::File;
+    /// #[osiris::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let f = File::open("foo.txt").await?;
+    ///     let buffer = vec![0; 10];
+    ///
+    ///     // Read up to 10 bytes
+    ///     let (res, buffer) = f.read_at(buffer, 0).await;
+    ///     let n = res?;
+    ///
+    ///     println!("The bytes: {:?}", &buffer[..n]);
+    ///
+    ///     // Close the file
+    ///     f.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn read_at<T: IoBufMut>(&mut self, buf: T, pos: usize) -> (io::Result<usize>, T) {
+        let Some(fd) = self.fd else { unreachable!() };
+
+        let mut buf = buf.slice(pos..);
+
+        let entry = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.len() as _).build();
+        // Safety: the buffer is guarded by submit
+        let (entry, buf) = unsafe { submit(entry, buf) }.await;
+        (
+            match entry {
+                Ok(entry) => Ok(entry.result().try_into().unwrap_or(0)),
+                Err(err) => Err(err),
+            },
+            buf.into_inner(),
+        )
+    }
+
+    /// Attempts to sync all OS-internal metadata to disk.
+    ///
+    /// This function will attempt to ensure that all in-memory data reaches the
+    /// filesystem before completing.
+    ///
+    /// This can be used to handle errors that would otherwise only be caught
+    /// when the `File` is closed.  Dropping a file will ignore errors in
+    /// synchronizing this in-memory data.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs::File;
+    ///
+    /// #[osiris::main]
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let f = File::create("foo.txt").await?;
+    ///     let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
+    ///     let n = res?;
+    ///     
+    ///     f.sync_all().await?;
+    ///     
+    ///     // Close the file
+    ///     f.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn sync_all(&mut self) -> io::Result<()> {
+        let Some(fd) = self.fd else { unreachable!() };
+        let entry = Fsync::new(Fd(fd)).build();
+        // Safety: no resource tracking needed
+        unsafe { submit(entry, ()).await.0? };
+        Ok(())
+    }
+
+    /// Attempts to sync file data to disk.
+    ///
+    /// This method is similar to [`sync_all`], except that it may not
+    /// synchronize file metadata to the filesystem.
+    ///
+    /// This is intended for use cases that must synchronize content, but don't
+    /// need the metadata on disk. The goal of this method is to reduce disk
+    /// operations.
+    ///
+    /// Note that some platforms may simply implement this in terms of
+    /// [`sync_all`].
+    ///
+    /// [`sync_all`]: File::sync_all
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs::File;
+    ///
+    /// #[osiris::main]
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let f = File::create("foo.txt").await?;
+    ///     let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
+    ///     let n = res?;
+    ///
+    ///     f.sync_data().await?;
+    ///
+    ///     // Close the file
+    ///     f.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn sync_data(&self) -> io::Result<()> {
+        let Some(fd) = self.fd else { unreachable!() };
+        let entry = Fsync::new(Fd(fd))
+            .flags(types::FsyncFlags::DATASYNC)
+            .build();
+        // Safety: no resource tracking needed
+        unsafe { submit(entry, ()).await.0? };
+        Ok(())
     }
 }

@@ -1,4 +1,4 @@
-FROM rust:1.65
+FROM rust:1.66
 WORKDIR /root/osiris
 RUN mkdir /root/.config
 COPY . .
