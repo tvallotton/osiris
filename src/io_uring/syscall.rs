@@ -1,19 +1,15 @@
-use super::bindings::{self, IoUringParams};
+use super::config::Params;
+
 use libc::*;
 use std::{io, ptr::null_mut};
 
-macro_rules! syscall {
-    ($fun:ident, $($args:expr),* $(,)?) => {{
-        let res = libc::syscall(libc::$fun, $($args),*);
-        if res < 0 {
-            Err(std::io::Error::last_os_error())
-        } else {
-            Ok(res)
-        }
-    }};
-}
-
-pub unsafe fn allocate_ring(ring_fd: i32, size: usize, side: u32) -> *mut u32 {
+/// Safety:
+/// * ring_fd must be a valid file descriptor initialized from an io_uring_setup system call
+/// * size must be the size in bytes of the queue to be queue being allocated as returned by the
+///     io_uring_setup syscall
+/// * side must be one of IORING_OFF_CQ_RING | IORING_OFF_SQES | IORING_OFF_SQ_RING
+pub unsafe fn allocate_queue(ring_fd: i32, size: usize, side: u32) -> *mut u32 {
+    // Safety: guaranteed by the caller
     let ptr = unsafe {
         libc::mmap(
             null_mut(),
@@ -30,11 +26,19 @@ pub unsafe fn allocate_ring(ring_fd: i32, size: usize, side: u32) -> *mut u32 {
     ptr as _
 }
 
-pub fn io_uring_setup(entries: u32, params: &IoUringParams) -> io::Result<i32> {
-    // Safety:
-    let fd = unsafe { syscall!(SYS_io_uring_setup, entries, params)? };
+/// # Safety
+/// * the number of entries must be a a power of two smaller or equal to `1 << 12`.
+pub unsafe fn io_uring_setup(entries: u32, params: &mut Params) -> io::Result<i32> {
+    // Safety: guaranteed by the caller
+    let fd = unsafe { syscall(SYS_io_uring_setup, entries, params) };
+    if fd < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
     Ok(fd as i32)
 }
+
+/// # Safety
+/// * `fd` must be a valid io-uring file descriptor
 pub unsafe fn io_uring_enter(
     ring_fd: i32,
     to_submit: u32,
@@ -43,7 +47,7 @@ pub unsafe fn io_uring_enter(
 ) -> io::Result<i32> {
     // Safety: upheld by the caller
     let fd = unsafe {
-        syscall!(
+        syscall(
             SYS_io_uring_enter,
             ring_fd,
             to_submit,
@@ -51,7 +55,11 @@ pub unsafe fn io_uring_enter(
             flags,
             0,
             0,
-        )?
+        )
     };
-    Ok(fd as i32)
+    if fd < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(fd as i32)
+    }
 }

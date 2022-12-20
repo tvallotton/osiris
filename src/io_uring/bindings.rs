@@ -491,10 +491,10 @@ pub struct io_uring_sqe {
     pub flags: __u8,
     pub ioprio: __u16,
     pub fd: __s32,
-    pub __bindgen_anon_1: io_uring_sqe__bindgen_ty_1,
-    pub __bindgen_anon_2: io_uring_sqe__bindgen_ty_2,
+    pub off: __u64,
+    pub addr: __u64,
     pub len: __u32,
-    pub __bindgen_anon_3: io_uring_sqe__bindgen_ty_3,
+    pub sqe_flags: io_uring_sqe_flags,
     pub user_data: __u64,
     pub __bindgen_anon_4: io_uring_sqe__bindgen_ty_4,
 }
@@ -512,7 +512,7 @@ pub union io_uring_sqe__bindgen_ty_2 {
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub union io_uring_sqe__bindgen_ty_3 {
+pub union io_uring_sqe_flags {
     pub rw_flags: __kernel_rwf_t,
     pub fsync_flags: __u32,
     pub poll_events: __u16,
@@ -590,7 +590,7 @@ pub const IORING_OP_TEE: _bindgen_ty_2 = 33;
 pub const IORING_OP_LAST: _bindgen_ty_2 = 34;
 pub type _bindgen_ty_2 = ::std::os::raw::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct io_uring_cqe {
     pub user_data: __u64,
     pub res: __s32,
@@ -673,7 +673,7 @@ impl io_cqring_offsets {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Default)]
-pub struct IoUringParams {
+pub struct io_uring_params {
     pub sq_entries: __u32,
     pub cq_entries: __u32,
     pub flags: __u32,
