@@ -9,3 +9,4 @@ mod dir;
 mod file;
 mod metadata;
 mod open_options;
+mod read;

@@ -41,7 +41,7 @@ unsafe impl IoBufMut for Vec<u8> {
 
     unsafe fn set_init(&mut self, init_len: usize) {
         if self.len() < init_len {
-            // Safety: the invariants must upheld by the caller
+            // Safety: the invariants must be upheld by the caller
             unsafe { self.set_len(init_len) }
         }
     }

@@ -21,7 +21,7 @@ async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
         path.as_ptr().cast(),
         statxbuf.as_mut_ptr().cast(),
     )
-    .flags(libc::STATX_ALL as _)
+    .mask(libc::STATX_ALL as _)
     .build();
     let (cqe, (statx, _)) = unsafe { submit(sqe, (statxbuf, path)).await };
     cqe?;

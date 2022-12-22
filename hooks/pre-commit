@@ -1,3 +1,4 @@
 #!/bin/sh
 
+cargo clippy -F unstable
 cargo clippy && cargo +nightly fmt

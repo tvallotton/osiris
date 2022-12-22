@@ -279,21 +279,22 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn read_at<T: IoBufMut>(&mut self, buf: T, pos: usize) -> (io::Result<usize>, T) {
+    pub async fn read_at<T: IoBufMut>(&mut self, mut buf: T, pos: u64) -> (io::Result<usize>, T) {
         let Some(fd) = self.fd else { unreachable!() };
-
-        let mut buf = buf.slice(pos..);
-
-        let sqe = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.len() as _).build();
+        let sqe = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.bytes_total() as _)
+            .offset64(pos as _)
+            .build();
         // Safety: the buffer is guarded by submit
-        let (cqe, buf) = unsafe { submit(sqe, buf) }.await;
-        (
-            match cqe {
-                Ok(entry) => Ok(entry.result().try_into().unwrap_or(0)),
-                Err(err) => Err(err),
-            },
-            buf.into_inner(),
-        )
+        let (res, mut buf) = unsafe { submit(sqe, buf) }.await;
+
+        match res {
+            Ok(cqe) => {
+                // Safety: initilialized by io-uring
+                unsafe { buf.set_init(cqe.result() as _) };
+                (Ok(cqe.result() as _), buf)
+            }
+            Err(err) => (Err(err), buf),
+        }
     }
 
     /// Attempts to sync all OS-internal metadata to disk.
@@ -392,6 +393,7 @@ impl File {
         let mut statx = Box::new(MaybeUninit::<libc::statx>::uninit());
         let sqe = Statx::new(Fd(fd), EMPTY_PATH.as_ptr(), statx.as_mut_ptr().cast())
             .flags(libc::AT_EMPTY_PATH)
+            .mask(libc::STATX_ALL)
             .build();
         // Safety: all resources are passed to submit
         let (cqe, statx) = unsafe { submit(sqe, statx).await };
