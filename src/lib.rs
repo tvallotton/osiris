@@ -2,8 +2,6 @@
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
 #![warn(clippy::all)]
-#![warn(clippy::undocumented_unsafe_blocks)]
-#![warn(unsafe_op_in_unsafe_fn)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::ptr_as_ptr)]

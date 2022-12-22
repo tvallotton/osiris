@@ -37,4 +37,5 @@ dependencies = [
  "dotenv",
  "io-uring",
  "libc",
+ "osiris",
 ]
