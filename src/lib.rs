@@ -5,6 +5,7 @@
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::ptr_as_ptr)]
+#![allow(clippy::len_without_is_empty)]
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::borrow_as_ptr)]
 pub use runtime::block_on;

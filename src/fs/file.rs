@@ -6,9 +6,11 @@ use crate::buf::{IoBuf, IoBufMut};
 use io_uring::{opcode::*, types, types::Fd};
 
 use crate::detach;
+use crate::fs::Metadata;
 use crate::shared_driver::submit;
 
 use std::io;
+use std::mem::MaybeUninit;
 use std::path::Path;
 
 use super::OpenOptions;
@@ -282,11 +284,11 @@ impl File {
 
         let mut buf = buf.slice(pos..);
 
-        let entry = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.len() as _).build();
+        let sqe = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.len() as _).build();
         // Safety: the buffer is guarded by submit
-        let (entry, buf) = unsafe { submit(entry, buf) }.await;
+        let (cqe, buf) = unsafe { submit(sqe, buf) }.await;
         (
-            match entry {
+            match cqe {
                 Ok(entry) => Ok(entry.result().try_into().unwrap_or(0)),
                 Err(err) => Err(err),
             },
@@ -323,9 +325,9 @@ impl File {
     /// ```
     pub async fn sync_all(&mut self) -> io::Result<()> {
         let Some(fd) = self.fd else { unreachable!() };
-        let entry = Fsync::new(Fd(fd)).build();
+        let sqe = Fsync::new(Fd(fd)).build();
         // Safety: no resource tracking needed
-        unsafe { submit(entry, ()).await.0? };
+        unsafe { submit(sqe, ()).await.0? };
         Ok(())
     }
 
@@ -363,11 +365,39 @@ impl File {
     /// ```
     pub async fn sync_data(&self) -> io::Result<()> {
         let Some(fd) = self.fd else { unreachable!() };
-        let entry = Fsync::new(Fd(fd))
+        let sqe = Fsync::new(Fd(fd))
             .flags(types::FsyncFlags::DATASYNC)
             .build();
         // Safety: no resource tracking needed
-        unsafe { submit(entry, ()).await.0? };
+        unsafe { submit(sqe, ()).await.0? };
         Ok(())
+    }
+
+    /// Queries metadata about the underlying file.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::fs::File;
+    ///
+    /// fn main() -> std::io::Result<()> {
+    ///     let mut f = File::open("foo.txt")?;
+    ///     let metadata = f.metadata()?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn metadata(&self) -> io::Result<Metadata> {
+        let Some(fd) = self.fd else { unreachable!() };
+        static EMPTY_PATH: &[u8] = b"\0";
+        let mut statx = Box::new(MaybeUninit::<libc::statx>::uninit());
+        let sqe = Statx::new(Fd(fd), EMPTY_PATH.as_ptr(), statx.as_mut_ptr().cast())
+            .flags(libc::AT_EMPTY_PATH)
+            .build();
+        // Safety: all resources are passed to submit
+        let (cqe, statx) = unsafe { submit(sqe, statx).await };
+        cqe?;
+        // Safety: initialized by io-uring
+        let statx = unsafe { MaybeUninit::assume_init(*statx) };
+        Ok(Metadata { statx })
     }
 }

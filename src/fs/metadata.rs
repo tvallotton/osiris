@@ -32,7 +32,7 @@ async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
 
 pub struct Metadata {
     #[cfg(target_os = "linux")]
-    statx: statx,
+    pub(crate) statx: statx,
 }
 
 impl Metadata {
