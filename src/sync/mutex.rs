@@ -40,6 +40,21 @@ pub struct Guard<'a, T> {
 
 pub struct Error(());
 
+impl<'a, T: Debug> Debug for Guard<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: Debug> Debug for Mutex<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.try_lock() {
+            Ok(val) => f.debug_struct("Mutex").field("unlocked", &val).finish(),
+            Err(_) => f.debug_struct("Mutex").field("locked", &"...").finish(),
+        }
+    }
+}
+
 impl<'a, T> Deref for Guard<'a, T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {

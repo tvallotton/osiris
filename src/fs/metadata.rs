@@ -3,7 +3,7 @@ use io_uring::opcode::Statx;
 use io_uring::types::Fd;
 use libc::{statx, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
 use std::ffi::CString;
-use std::io;
+use std::io::{self, Error};
 use std::mem::MaybeUninit;
 use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
@@ -24,7 +24,10 @@ async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
     .mask(libc::STATX_ALL as _)
     .build();
     let (cqe, (statx, _)) = unsafe { submit(sqe, (statxbuf, path)).await };
-    cqe?;
+    let cqe = cqe?;
+    if cqe.result() < 0 {
+        return Err(Error::from_raw_os_error(-cqe.result()));
+    }
     // Safety: initialized by io-uring
     let statx = unsafe { MaybeUninit::assume_init(*statx) };
     Ok(Metadata { statx })
@@ -67,7 +70,7 @@ impl Metadata {
     ///     Ok(())
     /// }
     /// ```
-    fn accessed(&self) -> std::io::Result<SystemTime> {
+    pub fn accessed(&self) -> std::io::Result<SystemTime> {
         Ok(system_time(self.statx.stx_atime))
     }
 
@@ -103,64 +106,6 @@ impl Metadata {
         Ok(system_time(self.statx.stx_ctime))
     }
 
-    /// Returns `true` if this metadata is for a directory. The
-    /// result is mutually exclusive to the result of
-    /// [`Metadata::is_file`], and will be false for symlink metadata
-    /// obtained from [`symlink_metadata`].
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use osiris::fs;
-    ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("./target")?;
-    ///
-    ///     assert!(!metadata.is_dir());
-    ///     Ok(())
-    /// }
-    /// ```
-    #[must_use]
-    pub fn is_dir(&self) -> bool {
-        (self.statx.stx_mode as u32 & S_IFMT) == S_IFDIR
-    }
-
-    /// Returns `true` if this metadata is for a regular file. The
-    /// result is mutually exclusive to the result of
-    /// [`Metadata::is_dir`], and will be false for symlink metadata
-    /// obtained from [`symlink_metadata`].
-    ///
-    /// When the goal is simply to read from (or write to) the source, the most
-    /// reliable way to test the source can be read (or written to) is to open
-    /// it. Only using `is_file` can break workflows like `diff <( prog_a )` on
-    /// a Unix-like system for example. See [`File::open`] or
-    /// [`OpenOptions::open`] for more information.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use osiris::fs;
-    ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("Cargo.lock").await?;
-    ///
-    ///     assert!(metadata.is_file());
-    ///     Ok(())
-    /// }
-    /// ```
-    #[must_use]
-    pub fn is_file(&self) -> bool {
-        (self.statx.stx_mode as u32 & S_IFMT) == S_IFREG
-    }
-
-    /// Returns `true` if this metadata is for a symbolic link.
-    #[must_use]
-    pub fn is_symlink(&self) -> bool {
-        (self.statx.stx_mode as u32 & S_IFMT) == S_IFLNK
-    }
-
     /// Returns the last modification time listed in this metadata.
     ///
     /// The returned value corresponds to the `mtime` field of `stat` on Unix
@@ -190,6 +135,62 @@ impl Metadata {
     /// ```
     pub fn modified(&self) -> io::Result<SystemTime> {
         Ok(system_time(self.statx.stx_mtime))
+    }
+
+    /// Returns `true` if this metadata is for a directory. The
+    /// result is mutually exclusive to the result of
+    /// [`Metadata::is_file`], and will be false for symlink metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs;
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> std::io::Result<()> {
+    ///     let metadata = fs::metadata("./target")?;
+    ///
+    ///     assert!(!metadata.is_dir());
+    ///     Ok(())
+    /// }
+    /// ```
+    #[must_use]
+    pub fn is_dir(&self) -> bool {
+        (self.statx.stx_mode as u32 & S_IFMT) == S_IFDIR
+    }
+
+    /// Returns `true` if this metadata is for a regular file. The
+    /// result is mutually exclusive to the result of
+    /// [`Metadata::is_dir`], and will be false for symlink metadata.
+    ///
+    /// When the goal is simply to read from (or write to) the source, the most
+    /// reliable way to test the source can be read (or written to) is to open
+    /// it. Only using `is_file` can break workflows like `diff <( prog_a )` on
+    /// a Unix-like system for example. See [`File::open`](crate::fs::File::open) or
+    /// [`OpenOptions::open`](crate::fs::OpenOptions::open) for more information.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs;
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> std::io::Result<()> {
+    ///     let metadata = fs::metadata("Cargo.lock").await?;
+    ///
+    ///     assert!(metadata.is_file());
+    ///     Ok(())
+    /// }
+    /// ```
+    #[must_use]
+    pub fn is_file(&self) -> bool {
+        (self.statx.stx_mode as u32 & S_IFMT) == S_IFREG
+    }
+
+    /// Returns `true` if this metadata is for a symbolic link.
+    #[must_use]
+    pub fn is_symlink(&self) -> bool {
+        (self.statx.stx_mode as u32 & S_IFMT) == S_IFLNK
     }
 
     /// Returns the size of the file, in bytes, this metadata is for.

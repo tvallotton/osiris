@@ -148,7 +148,8 @@ impl File {
     ///
     /// If `close` is not called before dropping the file, the file is closed in
     /// the background, but there is no guarantee as to **when** the close
-    /// operation will complete.
+    /// operation will complete. Note that letting a file be closed in the background
+    /// incurs in an additional allocation.
     ///
     /// # Examples
     ///

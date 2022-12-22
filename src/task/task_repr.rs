@@ -130,10 +130,11 @@ where
         let Ok(mut task) = self.payload.try_borrow_mut() else {
             // we don't want to abort the process by
             // double panicking
+            let msg = "A task attempted to abort itself. This is not supported, move the JoinHandle to another task or detach it if you don't want it to panic."; 
             if panicking() {
-                return;
+                eprintln!("{msg}"); 
             }
-            unimplemented!("A task attempted to abort itself. This is not supported at the moment, move the JoinHandle to another task or detach it if you don't want it to panic."); 
+            unimplemented!("{msg}"); 
         };
 
         if !matches!(&*task, Payload::Panic { .. }) {

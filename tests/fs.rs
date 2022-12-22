@@ -1,31 +1,41 @@
-#[cfg(target_os = "linux")]
-use osiris::{
-    block_on,
-    fs::{File, OpenOptions},
-};
+use osiris::block_on;
+use osiris::fs::{create_dir, metadata, remove_dir};
 
-#[cfg(target_os = "linux")]
 #[test]
-fn open_file() {
-    use std::io;
-
-    use osiris::spawn;
-    let time = std::time::Instant::now();
+fn test_metadata() {
     block_on(async {
-        let mut handles = vec![];
-        for i in 0..1000 {
-            let filename = format!("files/file_{i}.txt");
-            let h = spawn(async move { File::create(filename).await });
-            handles.push(h);
-        }
+        let dir = metadata("tests/fs_test_files").await.unwrap();
+        assert!(dir.is_dir());
 
-        for handle in handles {
-            handle.await?;
-        }
+        let bar = metadata("tests/fs_test_files/bar.txt").await.unwrap();
+        assert!(bar.is_file());
+        assert_eq!(bar.len(), 10);
 
-        io::Result::Ok(())
+        let _ = dbg!(bar.created());
+        let _ = dbg!(bar.modified());
+        let _ = dbg!(bar.accessed());
     })
-    .unwrap()
     .unwrap();
-    println!("{:?}", time.elapsed());
+}
+
+#[test]
+fn create_and_rm_dir() {
+    block_on(async {
+        let path = "tests/fs_test_files/new_dir";
+        assert!(metadata(path).await.is_err());
+        create_dir(path).await.unwrap();
+        assert!(metadata(path).await.unwrap().is_dir());
+        remove_dir(path).await.unwrap();
+        assert!(metadata(path).await.is_err());
+    })
+    .unwrap();
+}
+
+#[test]
+fn fooooo() {
+    block_on(async {
+        let x = remove_dir("tests/fs_test_files/non_empty_dir").await;
+        x.unwrap();
+    })
+    .unwrap();
 }

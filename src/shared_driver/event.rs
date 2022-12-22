@@ -17,6 +17,7 @@ use std::ops::ControlFlow::*;
 use std::pin::Pin;
 use std::process::Output;
 use std::task::{Context, Poll};
+use std::thread::panicking;
 
 /// A future for IO events
 ///
@@ -61,7 +62,14 @@ impl<T: 'static> Drop for Event<T> {
             let entry = io_uring::opcode::AsyncCancel::new(self.id).build();
             let data = self.data.take().unwrap();
             let Some(rt) = current() else {
-                return forget(data);
+                forget(data);
+                let msg = "memory leak detected. failed to spawn cleanup task while cancelling a future."; 
+                if !panicking() {
+                    panic!("{msg}"); 
+                } else {
+                    eprintln!("error: {msg}"); 
+                }
+                return;
             };
             let cancel = unsafe { submit(entry, data) };
             rt.executor.spawn(cancel, rt.clone(), true);
