@@ -397,7 +397,7 @@ impl File {
         let Some(fd) = self.fd else { unreachable!() };
         static EMPTY_PATH: &[u8] = b"\0";
         let mut statx = Box::new(MaybeUninit::<libc::statx>::uninit());
-        let sqe = Statx::new(Fd(fd), EMPTY_PATH.as_ptr(), statx.as_mut_ptr().cast())
+        let sqe = Statx::new(Fd(fd), EMPTY_PATH.as_ptr() as _, statx.as_mut_ptr().cast())
             .flags(libc::AT_EMPTY_PATH)
             .mask(libc::STATX_ALL)
             .build();

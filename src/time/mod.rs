@@ -2,6 +2,8 @@ use std::future::{poll_fn, Future};
 use std::pin::Pin;
 use std::task::{ready, Poll};
 pub use std::time::Duration;
+pub use timeout::timeout;
+pub mod timeout;
 
 /// Waits until `duration` has elapsed. An asynchronous analog to
 /// `std::thread::sleep`.

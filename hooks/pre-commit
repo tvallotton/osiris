@@ -1,4 +1,5 @@
 #!/bin/sh
 
-cargo clippy -F unstable
-cargo clippy && cargo +nightly fmt
+cargo +nightly fmt
+cargo test --doc -F unstable
+cargo clippy 
