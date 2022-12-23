@@ -5,9 +5,12 @@ use std::path::Path;
 
 #[cfg(feature = "unstable")]
 pub use dir::{create_dir, remove_dir};
+#[cfg(feature = "unstable")]
+pub use file::remove_file;
 pub use file::File;
 pub use metadata::{metadata, Metadata};
 pub use open_options::OpenOptions;
+pub use read::{read, read_to_string};
 
 #[cfg(feature = "unstable")]
 mod dir;

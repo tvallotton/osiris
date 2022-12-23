@@ -23,15 +23,18 @@ use std::path::Path;
 /// Opening a file to read:
 ///
 /// ```no_run
+/// # osiris::block_on(async {
 /// use osiris::fs::OpenOptions;
 ///
 /// let file = OpenOptions::new().read(true).open("foo.txt").await;
+/// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 ///
 /// Opening a file for both reading and writing, as well as creating it if it
 /// doesn't exist:
 ///
 /// ```no_run
+/// # osiris::block_on(async {
 /// use osiris::fs::OpenOptions;
 ///
 /// let file = OpenOptions::new()
@@ -39,7 +42,8 @@ use std::path::Path;
 ///             .write(true)
 ///             .create(true)
 ///             .open("foo.txt")
-///             .await;
+///             .await?;
+/// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 #[derive(Debug, Clone)]
 pub struct OpenOptions {
@@ -61,13 +65,11 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new().read(true).open("foo.txt").await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new().read(true).open("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     #[must_use]
     #[allow(clippy::new_without_default)]
@@ -93,13 +95,11 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new().read(true).open("foo.txt").await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new().read(true).open("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn read(&mut self, read: bool) -> &mut OpenOptions {
         self.read = read;
@@ -117,13 +117,11 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new().write(true).open("foo.txt").await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new().write(true).open("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn write(&mut self, write: bool) -> &mut OpenOptions {
         self.write = write;
@@ -149,13 +147,11 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new().append(true).open("foo.txt").await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new().append(true).open("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn append(&mut self, append: bool) -> &mut OpenOptions {
         self.append = append;
@@ -172,17 +168,15 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new()
-    ///         .write(true)
-    ///         .truncate(true)
-    ///         .open("foo.txt")
-    ///         .await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new()
+    ///     .write(true)
+    ///     .truncate(true)
+    ///     .open("foo.txt")
+    ///     .await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn truncate(&mut self, truncate: bool) -> &mut OpenOptions {
         self.truncate = truncate;
@@ -197,17 +191,15 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new()
-    ///         .write(true)
-    ///         .create(true)
-    ///         .open("foo.txt")
-    ///         .await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new()
+    ///     .write(true)
+    ///     .create(true)
+    ///     .open("foo.txt")
+    ///     .await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn create(&mut self, create: bool) -> &mut OpenOptions {
         self.create = create;
@@ -236,17 +228,15 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new()
-    ///         .write(true)
-    ///         .create_new(true)
-    ///         .open("foo.txt")
-    ///         .await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new()
+    ///     .write(true)
+    ///     .create_new(true)
+    ///     .open("foo.txt")
+    ///     .await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn create_new(&mut self, create_new: bool) -> &mut OpenOptions {
         self.create_new = create_new;
@@ -283,13 +273,11 @@ impl OpenOptions {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::OpenOptions;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = OpenOptions::new().read(true).open("foo.txt").await?;
-    ///     Ok(())
-    /// }
+    /// let file = OpenOptions::new().read(true).open("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     ///
     /// [`AlreadyExists`]: io::ErrorKind::AlreadyExists

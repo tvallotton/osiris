@@ -140,14 +140,14 @@ impl<T> Mutex<T> {
     /// # Examples
     ///
     /// ```
+    /// # osiris::block_on(async move {
     /// use std::rc::Rc;
-    /// use osiris::task;
+    /// use osiris::{task, spawn, sync::Mutex};
     ///
     /// let mutex = Rc::new(Mutex::new(0));
     /// let c_mutex = Rc::clone(&mutex);
-    /// # block_on(async move {
     /// spawn(async move {
-    ///     *c_mutex.lock().unwrap() = 10;
+    ///     *c_mutex.lock().await = 10;
     /// }).await;
     /// assert_eq!(*mutex.lock().await, 10);
     /// # });
@@ -184,13 +184,12 @@ impl<T> Mutex<T> {
     /// # Examples
     ///
     /// ```
-    /// # use osiris::block_on;
+    /// # osiris::block_on(async {
     /// use std::rc::Rc;
     /// use osiris::{sync::Mutex, spawn};
     ///
     /// let mutex = Rc::new(Mutex::new(0));
     /// let c_mutex = Rc::clone(&mutex);
-    /// # block_on(async {
     /// spawn(async move {
     ///     let mut lock = c_mutex.try_lock();
     ///     if let Ok(ref mut mutex) = lock {

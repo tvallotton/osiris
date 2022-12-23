@@ -1,6 +1,7 @@
 use crate::buf::Slice;
 
 use std::ops;
+use std::rc::Rc;
 
 /// An `io-uring` compatible buffer.
 ///
@@ -116,6 +117,19 @@ unsafe impl IoBuf for &'static [u8] {
         self.bytes_init()
     }
 }
+
+unsafe impl<const N: usize> IoBuf for &'static [u8; N] {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+    fn bytes_init(&self) -> usize {
+        N
+    }
+    fn bytes_total(&self) -> usize {
+        N
+    }
+}
+
 // Safety: static references are stable
 unsafe impl IoBuf for &'static str {
     fn stable_ptr(&self) -> *const u8 {
@@ -128,5 +142,69 @@ unsafe impl IoBuf for &'static str {
 
     fn bytes_total(&self) -> usize {
         self.bytes_init()
+    }
+}
+// Safety: Rc are stable pointers
+unsafe impl IoBuf for Rc<[u8]> {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+
+    fn bytes_init(&self) -> usize {
+        self.len()
+    }
+
+    fn bytes_total(&self) -> usize {
+        self.len()
+    }
+}
+// Safety: Rc are stable pointers
+unsafe impl IoBuf for Rc<str> {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+
+    fn bytes_init(&self) -> usize {
+        self.len()
+    }
+
+    fn bytes_total(&self) -> usize {
+        self.len()
+    }
+}
+// Safety: guaranteed by T: IoBuf
+unsafe impl<T: IoBuf> IoBuf for Rc<T> {
+    fn stable_ptr(&self) -> *const u8 {
+        T::stable_ptr(self)
+    }
+    fn bytes_init(&self) -> usize {
+        T::bytes_init(self)
+    }
+    fn bytes_total(&self) -> usize {
+        T::bytes_total(self)
+    }
+}
+// Safety: Boxes are stable pointers
+unsafe impl IoBuf for Box<str> {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+    fn bytes_init(&self) -> usize {
+        self.len()
+    }
+    fn bytes_total(&self) -> usize {
+        self.len()
+    }
+}
+// Safety: Boxes are stable pointers
+unsafe impl IoBuf for Box<[u8]> {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+    fn bytes_init(&self) -> usize {
+        self.len()
+    }
+    fn bytes_total(&self) -> usize {
+        self.len()
     }
 }

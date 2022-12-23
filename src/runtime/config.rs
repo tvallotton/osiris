@@ -47,13 +47,13 @@ pub struct Config {
     ///
     pub event_interval: u32,
     #[cfg(any(target_os = "linux", target_os = "windows"))]
-    /// The number of entries used in the io-uring/io-ring ringbuffer.
+    /// The number of entries used in the io-ring ringbuffer.
     /// This field determines the maximum number of concurrent io operations
     /// that can be submitted to the kernel at a time. It defaults to 2048.
     /// This value cannot be greater than 4096.
     pub ring_entries: u32,
     /// Determines whether the kernel will be notified for events, or whether it will be continuously
-    /// polling for events. By default this value is set to `Notify`.
+    /// polling for them. By default this value is set to `Notify`.
     #[cfg(target_os = "linux")]
     pub mode: Mode,
     /// Determines the initial allocation size. When the runtime is expected to run for a
@@ -63,7 +63,7 @@ pub struct Config {
     pub init_capacity: usize,
 
     // Do not use this field. Changes related to this field are considered breaking changes.
-    // To construct a value of this type use `Config::default()`. Additional fiels may be added
+    // To construct a value of this type use `Config::default()`. Additional fields may be added
     // any time
     #[doc(hidden)]
     pub do_not_use_this_field: (),

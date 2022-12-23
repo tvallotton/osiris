@@ -18,13 +18,15 @@ pub use std::time::Duration;
 /// Wait 100ms and print "100 ms have elapsed".
 ///
 /// ```
+/// # osiris::block_on(async {
 /// use osiris::time::{sleep, Duration};
+/// use std::time::Instant;
 ///
-/// #[osiris::main]
-/// async fn main() {
-///     sleep(Duration::from_millis(100)).await;
-///     println!("100 ms have elapsed");
-/// }
+/// let time = Instant::now();
+/// let duration = Duration::from_millis(100);
+/// sleep(duration).await;
+/// assert!(time.elapsed() > duration);
+/// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 ///
 ///

@@ -23,22 +23,20 @@ use super::{cstr, OpenOptions};
 ///
 /// Files are automatically closed when they go out of scope.  Errors detected
 /// on closing are ignored by the implementation of `Drop`. It is recommended to
-/// close the file explicitly with [`close`].  Use the method [`sync_all`] if these
+/// close the file explicitly with [`close`](File::close).  Use the method [`sync_all`](File::sync_all) if these
 /// errors must be manually handled without closing.
 ///
 /// # Examples
 ///
-/// Creates a new file and write bytes to it (you can also use [`write()`]):
+/// Creates a new file and write bytes to it (you can also use [`write_at()`](File::write_at)):
 ///
 /// ```no_run
+/// # osiris::block_on(async {
 /// use osiris::fs::File;
 ///
-/// #[osiris::main]
-/// async fn main() -> std::io::Result<()> {
-///     let mut file = File::create("foo.txt").await?;
-///     file.write_at(b"Hello, world!", 0).await?;
-///     Ok(())
-/// }
+/// let file = File::create("foo.txt").await?;
+/// file.write_at( b"Hello, world!", 0).await.0?;
+/// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 pub struct File {
     pub(crate) fd: Option<i32>,
@@ -64,13 +62,11 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let mut f = File::open("foo.txt")?;
-    ///     Ok(())
-    /// }
+    /// let f = File::open("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<File> {
         OpenOptions::new().read(true).open(path.as_ref()).await
@@ -88,13 +84,11 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let mut f = File::create("foo.txt").await?;
-    ///     Ok(())
-    /// }
+    /// let f = File::create("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn create<P: AsRef<Path>>(path: P) -> Result<File> {
         OpenOptions::new()
@@ -119,13 +113,11 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let mut f = File::create_new("foo.txt").await?;
-    ///     Ok(())
-    /// }
+    /// let f = File::create_new("foo.txt").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn create_new<P: AsRef<Path>>(path: P) -> Result<File> {
         OpenOptions::new()
@@ -153,13 +145,11 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let mut f = File::options().append(true).open("example.log").await?;
-    ///     Ok(())
-    /// }
+    /// let f = File::options().append(true).open("example.log").await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     #[must_use]
     pub fn options() -> OpenOptions {
@@ -179,17 +169,14 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), std::io::Error> {
-    ///     // open the file
-    ///     let f = File::open("foo.txt").await?;
-    ///     // close the file
-    ///     f.close().await?;
-    ///
-    ///     Ok(())
-    /// }
+    ///  // open the file
+    ///  let f = File::open("foo.txt").await?;
+    ///  // close the file
+    ///  f.close().await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
 
     pub async fn close(self) -> io::Result<()> {
@@ -227,26 +214,24 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let mut file = File::create("foo.txt").await?;
+    /// let file = File::create("foo.txt").await?;
     ///
-    ///     // Writes some prefix of the byte string, not necessarily all of it.
-    ///     let (res, _) = file.write_at(&b"some bytes"[..], 0).await;
-    ///     let n = res?;
+    /// // Writes some prefix of the byte string, not necessarily all of it.
+    /// let (res, _) = file.write_at(&b"some bytes"[..], 0).await;
+    /// let n = res?;
     ///
-    ///     println!("wrote {} bytes", n);
+    /// println!("wrote {} bytes", n);
     ///
-    ///     // Close the file
-    ///     file.close().await?;
-    ///     Ok(())
-    /// }
+    /// // Close the file
+    /// file.close().await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     ///
     /// [`Ok(n)`]: Ok
-    pub async fn write_at<T: IoBuf>(&mut self, buf: T, pos: usize) -> (Result<usize>, T) {
+    pub async fn write_at<T: IoBuf>(&self, buf: T, pos: usize) -> (Result<usize>, T) {
         let Some(fd) = self.fd else { unreachable!() };
 
         let len = buf.bytes_init();
@@ -288,24 +273,23 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let f = File::open("foo.txt").await?;
-    ///     let buffer = vec![0; 10];
     ///
-    ///     // Read up to 10 bytes
-    ///     let (res, buffer) = f.read_at(buffer, 0).await;
-    ///     let n = res?;
+    /// let f = File::open("foo.txt").await?;
+    /// let buffer = vec![0; 10];
     ///
-    ///     println!("The bytes: {:?}", &buffer[..n]);
+    /// // Read up to 10 bytes
+    /// let (res, buffer) = f.read_at(buffer, 0).await;
+    /// let n = res?;
     ///
-    ///     // Close the file
-    ///     f.close().await?;
-    ///     Ok(())
-    /// }
+    /// println!("The bytes: {:?}", &buffer[..n]);
+    ///
+    /// // Close the file
+    /// f.close().await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
-    pub async fn read_at<T: IoBufMut>(&mut self, mut buf: T, pos: u64) -> (Result<usize>, T) {
+    pub async fn read_at<T: IoBufMut>(&self, mut buf: T, pos: u64) -> (Result<usize>, T) {
         let Some(fd) = self.fd else { unreachable!() };
         let sqe = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.bytes_total() as _)
             .offset64(pos as _)
@@ -335,22 +319,20 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let f = File::create("foo.txt").await?;
-    ///     let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
-    ///     let n = res?;
+    /// let f = File::create("foo.txt").await?;
+    /// let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
+    /// let n = res?;
+    ///
+    /// f.sync_all().await?;
     ///     
-    ///     f.sync_all().await?;
-    ///     
-    ///     // Close the file
-    ///     f.close().await?;
-    ///     Ok(())
-    /// }
+    /// // Close the file
+    /// f.close().await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
-    pub async fn sync_all(&mut self) -> Result<()> {
+    pub async fn sync_all(&self) -> Result<()> {
         let Some(fd) = self.fd else { unreachable!() };
         let sqe = Fsync::new(Fd(fd)).build();
         // Safety: no resource tracking needed
@@ -375,20 +357,18 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let f = File::create("foo.txt").await?;
-    ///     let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
-    ///     let n = res?;
+    /// let f = File::create("foo.txt").await?;
+    /// let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
+    /// let n = res?;
     ///
-    ///     f.sync_data().await?;
+    /// f.sync_data().await?;
     ///
-    ///     // Close the file
-    ///     f.close().await?;
-    ///     Ok(())
-    /// }
+    /// // Close the file
+    /// f.close().await?;
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn sync_data(&self) -> Result<()> {
         let Some(fd) = self.fd else { unreachable!() };
@@ -405,13 +385,13 @@ impl File {
     /// # Examples
     ///
     /// ```no_run
-    /// use std::fs::File;
+    /// # osiris::block_on(async {
+    /// use osiris::fs::File;
     ///
-    /// async fn main() -> std::io::Result<()> {
-    ///     let mut f = File::open("foo.txt")?;
-    ///     let metadata = f.metadata()?;
-    ///     Ok(())
-    /// }
+    /// let f = File::open("foo.txt").await?;
+    /// let metadata = f.metadata().await?;
+    /// assert!(metadata.is_file());
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn metadata(&self) -> Result<Metadata> {
         let Some(fd) = self.fd else { unreachable!() };
@@ -456,13 +436,11 @@ impl File {
 /// # Examples
 ///
 /// ```no_run
+/// # osiris::block_on(async {
 /// use osiris::fs;
 ///
-/// #[osiris::main]
-/// async fn main() -> std::io::Result<()> {
-///     fs::remove_file("a.txt").await?;
-///     Ok(())
-/// }
+/// fs::remove_file("a.txt").await?;
+/// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 #[cfg(feature = "unstable")]
 pub async fn remove_file(path: impl AsRef<Path>) -> Result<()> {

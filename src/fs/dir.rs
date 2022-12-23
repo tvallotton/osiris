@@ -20,13 +20,11 @@ use std::path::Path;
 /// # Examples
 ///
 /// ```no_run
+/// # osiris::block_on(async {
 /// use osiris::fs;
 ///
-/// #[osiris::main]
-/// async fn main() -> std::io::Result<()> {
-///     fs::create_dir("/some/dir").await?;
-///     Ok(())
-/// }
+/// fs::create_dir("/some/dir").await?;
+/// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 pub async fn create_dir(path: impl AsRef<Path>) -> Result<()> {
     _create_dir(path.as_ref()).await
@@ -49,9 +47,7 @@ async fn _create_dir(path: &Path) -> Result<()> {
 ///
 /// This function currently corresponds to the `unlinkat` function on linux
 /// and the `RemoveDirectory` function on Windows.
-/// Note that, this [may change in the future][changes].
-///
-/// [changes]: io#platform-specific-behavior
+/// Note that, this may change in the future.
 ///
 /// # Errors
 ///
@@ -66,13 +62,11 @@ async fn _create_dir(path: &Path) -> Result<()> {
 /// # Examples
 ///
 /// ```no_run
+/// # osiris::block_on(async {
 /// use osiris::fs;
 ///
-/// #[osiris::main]
-/// async fn main() -> std::io::Result<()> {
-///     fs::remove_dir("/some/dir").await?;
-///     Ok(())
-/// }
+/// fs::remove_dir("/some/dir").await?;
+/// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 pub async fn remove_dir(path: impl AsRef<Path>) -> Result<()> {
     _remove_dir(path.as_ref()).await

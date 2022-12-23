@@ -55,19 +55,17 @@ impl Metadata {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("foo.txt").await?;
+    /// let metadata = fs::metadata("foo.txt").await?;
     ///
-    ///     if let Ok(time) = metadata.accessed() {
-    ///         println!("{time:?}");
-    ///     } else {
-    ///         println!("Not supported on this platform");
-    ///     }
-    ///     Ok(())
+    /// if let Ok(time) = metadata.accessed() {
+    ///     println!("{time:?}");
+    /// } else {
+    ///     println!("Not supported on this platform");
     /// }
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn accessed(&self) -> std::io::Result<SystemTime> {
         Ok(system_time(self.statx.stx_atime))
@@ -87,19 +85,16 @@ impl Metadata {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs;
+    /// let metadata = fs::metadata("foo.txt").await?;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("foo.txt").await?;
-    ///
-    ///     if let Ok(time) = metadata.created() {
-    ///         println!("{time:?}");
-    ///     } else {
-    ///         println!("Not supported on this platform or filesystem");
-    ///     }
-    ///     Ok(())
+    /// if let Ok(time) = metadata.created() {
+    ///     println!("{time:?}");
+    /// } else {
+    ///     println!("Not supported on this platform or filesystem");
     /// }
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn created(&self) -> std::io::Result<SystemTime> {
         Ok(system_time(self.statx.stx_ctime))
@@ -118,19 +113,17 @@ impl Metadata {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("Cargo.toml").await?;
+    /// let metadata = fs::metadata("Cargo.toml").await?;
     ///
-    ///     if let Ok(time) = metadata.modified() {
-    ///         println!("{time:?}");
-    ///     } else {
-    ///         println!("Not supported on this platform");
-    ///     }
-    ///     Ok(())
+    /// if let Ok(time) = metadata.modified() {
+    ///     println!("{time:?}");
+    /// } else {
+    ///     println!("Not supported on this platform");
     /// }
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn modified(&self) -> io::Result<SystemTime> {
         Ok(system_time(self.statx.stx_mtime))
@@ -143,15 +136,12 @@ impl Metadata {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("./target")?;
-    ///
-    ///     assert!(!metadata.is_dir());
-    ///     Ok(())
-    /// }
+    /// let metadata = fs::metadata("./target").await?;
+    /// assert!(!metadata.is_dir());
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     #[must_use]
     pub fn is_dir(&self) -> bool {
@@ -171,15 +161,12 @@ impl Metadata {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("Cargo.lock").await?;
-    ///
-    ///     assert!(metadata.is_file());
-    ///     Ok(())
-    /// }
+    /// let metadata = fs::metadata("Cargo.lock").await?;
+    /// assert!(metadata.is_file());
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     #[must_use]
     pub fn is_file(&self) -> bool {
@@ -197,15 +184,15 @@ impl Metadata {
     /// # Examples
     ///
     /// ```no_run
+    /// # osiris::block_on(async {
     /// use osiris::fs;
     ///
-    /// #[osiris::main]
-    /// async fn main() -> std::io::Result<()> {
-    ///     let metadata = fs::metadata("Cargo.toml").await?;
+    /// let metadata = fs::metadata("Cargo.toml").await?;
     ///
-    ///     assert_ne!(0, metadata.len());
-    ///     Ok(())
-    /// }
+    /// assert_ne!(0, metadata.len());
+    ///
+    ///
+    /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     #[must_use]
     pub fn len(&self) -> u64 {
