@@ -33,17 +33,13 @@ pub async fn read(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     _read(path.as_ref()).await
 }
 
-pub async fn _read(path: &Path) -> io::Result<Vec<u8>> {
+async fn _read(path: &Path) -> io::Result<Vec<u8>> {
     let mut file = File::open(path).await?;
     let len = file.metadata().await?.len();
     let buf = Vec::with_capacity(len as _);
     let (result, buf) = file.read_at(buf, 0).await;
     result?;
     Ok(buf)
-}
-
-pub async fn read_to_string(path: impl AsRef<Path>) -> io::Result<String> {
-    _read_to_string(path.as_ref()).await
 }
 
 /// Read the entire contents of a file into a string.
@@ -75,7 +71,11 @@ pub async fn read_to_string(path: impl AsRef<Path>) -> io::Result<String> {
 ///     Ok(())
 /// }
 /// ```
-pub async fn _read_to_string(path: &Path) -> io::Result<String> {
+pub async fn read_to_string(path: impl AsRef<Path>) -> io::Result<String> {
+    _read_to_string(path.as_ref()).await
+}
+
+async fn _read_to_string(path: &Path) -> io::Result<String> {
     let bytes = _read(path).await?;
     match String::from_utf8(bytes) {
         Ok(str) => Ok(str),

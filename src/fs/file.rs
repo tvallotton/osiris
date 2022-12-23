@@ -92,7 +92,7 @@ impl File {
     ///
     /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
-    ///     let mut f = File::create("foo.txt")?;
+    ///     let mut f = File::create("foo.txt").await?;
     ///     Ok(())
     /// }
     /// ```
@@ -123,7 +123,7 @@ impl File {
     ///
     /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
-    ///     let mut f = File::create_new("foo.txt")?;
+    ///     let mut f = File::create_new("foo.txt").await?;
     ///     Ok(())
     /// }
     /// ```
@@ -156,8 +156,8 @@ impl File {
     /// use osiris::fs::File;
     ///
     /// #[osiris::main]
-    /// fn main() -> std::io::Result<()> {
-    ///     let mut f = File::options().append(true).open("example.log")?;
+    /// async fn main() -> std::io::Result<()> {
+    ///     let mut f = File::options().append(true).open("example.log").await?;
     ///     Ok(())
     /// }
     /// ```
@@ -231,7 +231,7 @@ impl File {
     ///
     /// #[osiris::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///     let file = File::create("foo.txt").await?;
+    ///     let mut file = File::create("foo.txt").await?;
     ///
     ///     // Writes some prefix of the byte string, not necessarily all of it.
     ///     let (res, _) = file.write_at(&b"some bytes"[..], 0).await;
@@ -338,7 +338,7 @@ impl File {
     /// use osiris::fs::File;
     ///
     /// #[osiris::main]
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     let f = File::create("foo.txt").await?;
     ///     let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
     ///     let n = res?;
@@ -378,7 +378,7 @@ impl File {
     /// use osiris::fs::File;
     ///
     /// #[osiris::main]
-    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     let f = File::create("foo.txt").await?;
     ///     let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
     ///     let n = res?;
@@ -407,7 +407,7 @@ impl File {
     /// ```no_run
     /// use std::fs::File;
     ///
-    /// fn main() -> std::io::Result<()> {
+    /// async fn main() -> std::io::Result<()> {
     ///     let mut f = File::open("foo.txt")?;
     ///     let metadata = f.metadata()?;
     ///     Ok(())
@@ -469,7 +469,7 @@ pub async fn remove_file(path: impl AsRef<Path>) -> Result<()> {
     _remove_file(path.as_ref()).await
 }
 #[cfg(feature = "unstable")]
-pub async fn _remove_file(path: &Path) -> Result<()> {
+async fn _remove_file(path: &Path) -> Result<()> {
     let path = cstr(path)?;
     let sqe = UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr()).build();
     let (cqe, _) = unsafe { submit(sqe, path).await };

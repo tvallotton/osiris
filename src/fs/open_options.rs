@@ -301,7 +301,7 @@ impl OpenOptions {
         self._open(path.as_ref()).await
     }
 
-    pub async fn _open(&self, path: &Path) -> Result<File> {
+    async fn _open(&self, path: &Path) -> Result<File> {
         use crate::fs::cstr;
         use io_uring::opcode::OpenAt;
         use io_uring::types;
