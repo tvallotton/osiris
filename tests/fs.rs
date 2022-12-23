@@ -30,12 +30,3 @@ fn create_and_rm_dir() {
     })
     .unwrap();
 }
-
-#[test]
-fn fooooo() {
-    block_on(async {
-        let x = remove_dir("tests/fs_test_files/non_empty_dir").await;
-        x.unwrap();
-    })
-    .unwrap();
-}

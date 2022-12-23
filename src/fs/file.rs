@@ -1,20 +1,45 @@
-#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_errors_doc, unused_imports)]
 
 use crate::buf::{IoBuf, IoBufMut};
 
 #[cfg(target_os = "linux")]
 use io_uring::{opcode::*, types, types::Fd};
+use libc::AT_FDCWD;
 
 use crate::detach;
 use crate::fs::Metadata;
 use crate::shared_driver::submit;
 
-use std::io;
+use std::io::{self, Error, Result};
 use std::mem::MaybeUninit;
 use std::path::Path;
 
-use super::OpenOptions;
+use super::{cstr, OpenOptions};
 
+/// An object providing access to an open file on the filesystem.
+///
+/// An instance of a `File` can be read and/or written depending on what options
+/// it was opened with.
+///
+/// Files are automatically closed when they go out of scope.  Errors detected
+/// on closing are ignored by the implementation of `Drop`. It is recommended to
+/// close the file explicitly with [`close`].  Use the method [`sync_all`] if these
+/// errors must be manually handled without closing.
+///
+/// # Examples
+///
+/// Creates a new file and write bytes to it (you can also use [`write()`]):
+///
+/// ```no_run
+/// use osiris::fs::File;
+///
+/// #[osiris::main]
+/// async fn main() -> std::io::Result<()> {
+///     let mut file = File::create("foo.txt").await?;
+///     file.write_at(b"Hello, world!", 0).await?;
+///     Ok(())
+/// }
+/// ```
 pub struct File {
     pub(crate) fd: Option<i32>,
 }
@@ -47,7 +72,7 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
+    pub async fn open<P: AsRef<Path>>(path: P) -> Result<File> {
         OpenOptions::new().read(true).open(path.as_ref()).await
     }
     /// Opens a file in write-only mode.
@@ -71,7 +96,7 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn create<P: AsRef<Path>>(path: P) -> io::Result<File> {
+    pub async fn create<P: AsRef<Path>>(path: P) -> Result<File> {
         OpenOptions::new()
             .write(true)
             .create(true)
@@ -102,7 +127,7 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn create_new<P: AsRef<Path>>(path: P) -> io::Result<File> {
+    pub async fn create_new<P: AsRef<Path>>(path: P) -> Result<File> {
         OpenOptions::new()
             .read(true)
             .write(true)
@@ -221,7 +246,7 @@ impl File {
     /// ```
     ///
     /// [`Ok(n)`]: Ok
-    pub async fn write_at<T: IoBuf>(&mut self, buf: T, pos: usize) -> (io::Result<usize>, T) {
+    pub async fn write_at<T: IoBuf>(&mut self, buf: T, pos: usize) -> (Result<usize>, T) {
         let Some(fd) = self.fd else { unreachable!() };
 
         let len = buf.bytes_init();
@@ -280,7 +305,7 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn read_at<T: IoBufMut>(&mut self, mut buf: T, pos: u64) -> (io::Result<usize>, T) {
+    pub async fn read_at<T: IoBufMut>(&mut self, mut buf: T, pos: u64) -> (Result<usize>, T) {
         let Some(fd) = self.fd else { unreachable!() };
         let sqe = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.bytes_total() as _)
             .offset64(pos as _)
@@ -325,7 +350,7 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn sync_all(&mut self) -> io::Result<()> {
+    pub async fn sync_all(&mut self) -> Result<()> {
         let Some(fd) = self.fd else { unreachable!() };
         let sqe = Fsync::new(Fd(fd)).build();
         // Safety: no resource tracking needed
@@ -365,7 +390,7 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn sync_data(&self) -> io::Result<()> {
+    pub async fn sync_data(&self) -> Result<()> {
         let Some(fd) = self.fd else { unreachable!() };
         let sqe = Fsync::new(Fd(fd))
             .flags(types::FsyncFlags::DATASYNC)
@@ -388,7 +413,7 @@ impl File {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn metadata(&self) -> io::Result<Metadata> {
+    pub async fn metadata(&self) -> Result<Metadata> {
         let Some(fd) = self.fd else { unreachable!() };
         static EMPTY_PATH: &[u8] = b"\0";
         let mut statx = Box::new(MaybeUninit::<libc::statx>::uninit());
@@ -403,4 +428,54 @@ impl File {
         let statx = unsafe { MaybeUninit::assume_init(*statx) };
         Ok(Metadata { statx })
     }
+}
+
+/// Removes a file from the filesystem.
+///
+/// Note that there is no
+/// guarantee that the file is immediately deleted (e.g., depending on
+/// platform, other open file descriptors may prevent immediate removal).
+///
+/// # Platform-specific behavior
+///
+/// This function currently corresponds to the `unlink` function on Unix
+/// and the `DeleteFile` function on Windows.
+/// Note that, this [may change in the future][changes].
+///
+/// [changes]: io#platform-specific-behavior
+///
+/// # Errors
+///
+/// This function will return an error in the following situations, but is not
+/// limited to just these cases:
+///
+/// * `path` points to a directory.
+/// * The file doesn't exist.
+/// * The user lacks permissions to remove the file.
+///
+/// # Examples
+///
+/// ```no_run
+/// use osiris::fs;
+///
+/// #[osiris::main]
+/// async fn main() -> std::io::Result<()> {
+///     fs::remove_file("a.txt").await?;
+///     Ok(())
+/// }
+/// ```
+#[cfg(feature = "unstable")]
+pub async fn remove_file(path: impl AsRef<Path>) -> Result<()> {
+    _remove_file(path.as_ref()).await
+}
+#[cfg(feature = "unstable")]
+pub async fn _remove_file(path: &Path) -> Result<()> {
+    let path = cstr(path)?;
+    let sqe = UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr()).build();
+    let (cqe, _) = unsafe { submit(sqe, path).await };
+    let code = cqe?.result();
+    if code < 0 {
+        return Err(Error::from_raw_os_error(-code));
+    }
+    Ok(())
 }

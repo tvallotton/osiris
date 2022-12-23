@@ -1,11 +1,8 @@
 // # Attribution
 // credits to the authors at osiris
-
 use crate::fs::File;
 use crate::shared_driver::submit;
-use std::ffi::CString;
-use std::io;
-use std::os::unix::prelude::OsStrExt;
+use std::io::{self, Error, Result};
 use std::path::Path;
 
 /// Options and flags which can be used to configure how a file is opened.
@@ -300,39 +297,43 @@ impl OpenOptions {
     /// [`NotFound`]: io::ErrorKind::NotFound
     /// [`Other`]: io::ErrorKind::Other
     /// [`PermissionDenied`]: io::ErrorKind::PermissionDenied
-    pub async fn open(&self, path: impl AsRef<Path>) -> io::Result<File> {
+    pub async fn open(&self, path: impl AsRef<Path>) -> Result<File> {
+        self._open(path.as_ref()).await
+    }
+
+    pub async fn _open(&self, path: &Path) -> Result<File> {
+        use crate::fs::cstr;
         use io_uring::opcode::OpenAt;
         use io_uring::types;
+        let path = cstr(path)?;
 
-        let path = path.as_ref().as_os_str().as_bytes();
-        let pathname = CString::new(path)?;
         let flags = libc::O_CLOEXEC | self.access_mode()? | self.creation_mode()?;
         let dirfd = types::Fd(libc::AT_FDCWD);
 
-        let entry = OpenAt::new(dirfd, pathname.as_c_str().as_ptr())
+        let entry = OpenAt::new(dirfd, path.as_ptr())
             .flags(flags)
             .mode(self.mode)
             .build();
         // Safety: the resource (pathname) is submitted
-        let (entry, _) = unsafe { submit(entry, pathname) }.await;
+        let (entry, _) = unsafe { submit(entry, path) }.await;
 
         Ok(File {
             fd: Some(entry?.result()),
         })
     }
 
-    pub(crate) fn access_mode(&self) -> io::Result<libc::c_int> {
+    pub(crate) fn access_mode(&self) -> Result<libc::c_int> {
         match (self.read, self.write, self.append) {
             (true, false, false) => Ok(libc::O_RDONLY),
             (false, true, false) => Ok(libc::O_WRONLY),
             (true, true, false) => Ok(libc::O_RDWR),
             (false, _, true) => Ok(libc::O_WRONLY | libc::O_APPEND),
             (true, _, true) => Ok(libc::O_RDWR | libc::O_APPEND),
-            (false, false, false) => Err(io::Error::from_raw_os_error(libc::EINVAL)),
+            (false, false, false) => Err(Error::from_raw_os_error(libc::EINVAL)),
         }
     }
 
-    pub(crate) fn creation_mode(&self) -> io::Result<libc::c_int> {
+    pub(crate) fn creation_mode(&self) -> Result<libc::c_int> {
         match (self.write, self.append) {
             (true, false) => {}
             (false, false) => {

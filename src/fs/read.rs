@@ -1,5 +1,5 @@
 use crate::fs::File;
-use std::io::{self, Error, ErrorKind};
+use std::io::{self, Error, ErrorKind, Result};
 use std::path::Path;
 
 /// Read the entire contents of a file into a bytes vector.
@@ -29,7 +29,7 @@ use std::path::Path;
 ///     Ok(())
 /// }
 /// ```
-pub async fn read(path: impl AsRef<Path>) -> io::Result<Vec<u8>> {
+pub async fn read(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     _read(path.as_ref()).await
 }
 

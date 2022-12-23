@@ -1,11 +1,11 @@
+use super::cstr;
 use crate::shared_driver::submit;
-use io_uring::opcode::MkDirAt;
+use io_uring::opcode::{MkDirAt, UnlinkAt};
 use io_uring::types::Fd;
 use libc::AT_FDCWD;
-use std::ffi::CString;
 use std::io::{Error, Result};
-use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
+
 /// Creates a new, empty directory at the provided path
 ///
 /// # Errors
@@ -28,14 +28,12 @@ use std::path::Path;
 ///     Ok(())
 /// }
 /// ```
-#[cfg(feature = "unstable")]
 pub async fn create_dir(path: impl AsRef<Path>) -> Result<()> {
     _create_dir(path.as_ref()).await
 }
 
-#[cfg(feature = "unstable")]
 async fn _create_dir(path: &Path) -> Result<()> {
-    let path = CString::new(path.as_os_str().as_bytes()).unwrap();
+    let path = cstr(path)?;
     let sqe = MkDirAt::new(Fd(libc::AT_FDCWD), path.as_ptr()).build();
     let (cqe, _) = unsafe { submit(sqe, path).await };
     if cqe?.result() < 0 {
@@ -76,14 +74,13 @@ async fn _create_dir(path: &Path) -> Result<()> {
 ///     Ok(())
 /// }
 /// ```
-#[cfg(feature = "unstable")]
 pub async fn remove_dir(path: impl AsRef<Path>) -> Result<()> {
     _remove_dir(path.as_ref()).await
 }
 
 async fn _remove_dir(path: &Path) -> Result<()> {
-    let path = CString::new(path.as_os_str().as_bytes()).unwrap();
-    let sqe = io_uring::opcode::UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr())
+    let path = cstr(path)?;
+    let sqe = UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr())
         .flags(libc::AT_REMOVEDIR)
         .build();
     // Safety: the path is protected by submit
@@ -94,12 +91,3 @@ async fn _remove_dir(path: &Path) -> Result<()> {
     }
     Ok(())
 }
-
-// pub async fn remove_dir_all(path: impl AsRef<Path>) -> Result<()> {
-//     _remove_dir_all(path.as_ref()).await
-// }
-
-// // pub async fn _remove_dir_all(path: &Path) -> Result<()> {
-// //     let path = CString::new(path.as_os_str().as_bytes()).unwrap();
-
-// // }

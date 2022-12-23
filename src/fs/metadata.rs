@@ -1,20 +1,19 @@
+use super::cstr;
 use crate::shared_driver::submit;
 use io_uring::opcode::Statx;
 use io_uring::types::Fd;
 use libc::{statx, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
-use std::ffi::CString;
-use std::io::{self, Error};
+use std::io::{self, Error, Result};
 use std::mem::MaybeUninit;
-use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-pub async fn metadata(path: impl AsRef<Path>) -> std::io::Result<Metadata> {
+pub async fn metadata(path: impl AsRef<Path>) -> Result<Metadata> {
     _metadata(path.as_ref()).await
 }
 
 async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
-    let path = CString::new(path.as_os_str().as_bytes()).unwrap();
+    let path = cstr(path)?;
     let mut statxbuf = Box::new(MaybeUninit::<statx>::uninit());
     let sqe = Statx::new(
         Fd(libc::AT_FDCWD),
