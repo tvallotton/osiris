@@ -13,6 +13,7 @@ pub use task::{detach, spawn};
 pub mod buf;
 #[cfg(target_os = "linux")]
 pub mod fs;
+pub mod net;
 pub mod runtime;
 pub mod shared_driver;
 pub mod sync;
