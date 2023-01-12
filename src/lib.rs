@@ -8,6 +8,8 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::borrow_as_ptr)]
+use std::marker::PhantomData;
+
 pub use runtime::block_on;
 pub use task::{detach, spawn};
 pub mod buf;
@@ -21,3 +23,5 @@ pub mod task;
 pub mod time;
 #[cfg(feature = "macros")]
 pub use osiris_macros::{main, test};
+
+type Or<T, U> = (T, PhantomData<U>);

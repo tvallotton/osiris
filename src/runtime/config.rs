@@ -1,7 +1,9 @@
 use super::executor::Executor;
 use super::Runtime;
 use crate::shared_driver::SharedDriver;
+use std::ops::Range;
 use std::rc::Rc;
+use std::time::Duration;
 
 #[cfg(target_os = "linux")]
 use io_uring::IoUring;
@@ -24,6 +26,9 @@ use io_uring::IoUring;
 /// });
 /// # Ok(())}
 /// ```
+/// Note that changing the default values for this configuration
+/// will not be considered a breaking.
+///
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Sets the number of scheduler ticks after which the scheduler will poll for
@@ -61,12 +66,48 @@ pub struct Config {
     /// is better. When the runtime is going to be used for a single io-event then a smaller value
     /// is best. It defaults to 4096.
     pub init_capacity: usize,
-
+    /// Configuration for how the spawn blocking threadpool should manage
+    /// its resources.  
+    pub spawn_blocking: ThreadPoolConfig,
     // Do not use this field. Changes related to this field are considered breaking changes.
     // To construct a value of this type use `Config::default()`. Additional fields may be added
     // any time
     #[doc(hidden)]
     pub do_not_use_this_field: (),
+}
+
+/// Configuration for how the spawn blocking threadpool should manage
+/// its resources.
+#[derive(Clone, Debug)]
+pub struct ThreadPoolConfig {
+    /// The number of spawned threads must
+    /// belong to this range. It defaults to
+    /// `0..16`.
+    thread_range: Range<u32>,
+    /// the maximum amount of time a blocking
+    /// operation is allowed to wait in the queue.
+    ///
+    /// When this time is exceeded a new thread will be spawned
+    /// to perform the blocking operation. This is not always
+    /// guaranteed to happen, since the maximum number of allowed
+    /// threads might have been reached. Note that this is not the only
+    /// threshold that can cause a blocking thread to be spawned.
+    /// It defaults to `Duration::MAX`.
+    max_waiting_time: Duration,
+    /// The maximum amount of time a thread can remain idle
+    /// before being despawned. It defaults to 10s.
+    /// Note this is the only threshold than can cause a thread to be despawned.
+    thread_idle: Duration,
+}
+
+impl Default for ThreadPoolConfig {
+    fn default() -> Self {
+        Self {
+            thread_range: 0..16,
+            max_waiting_time: Duration::MAX,
+            thread_idle: Duration::from_secs(10),
+        }
+    }
 }
 
 /// Determines whether the kernel will be notified for events, or whether it will be continuously
@@ -95,6 +136,7 @@ impl Default for Config {
             event_interval: 61,
             #[cfg(target_os = "linux")]
             ring_entries: 2048,
+            spawn_blocking: ThreadPoolConfig::default(),
             #[cfg(target_os = "linux")]
             mode: Mode::default(),
             init_capacity: 4096,
@@ -115,6 +157,7 @@ impl Config {
         let rt = Runtime {
             config: self,
             executor,
+
             driver,
         };
         Ok(rt)

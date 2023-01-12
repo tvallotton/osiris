@@ -1,3 +1,4 @@
+#![cfg(target_os = "linux")]
 use osiris::block_on;
 use osiris::fs::{create_dir, metadata, remove_dir};
 
