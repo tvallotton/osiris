@@ -4,3 +4,5 @@ vscode
 *.svg
 *.txt
 *.DS_Store
+glibc-*
+musl
