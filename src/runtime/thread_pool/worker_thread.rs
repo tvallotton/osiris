@@ -1,4 +1,4 @@
-use super::Callback;
+use super::{Work, WorkOutput};
 use core::panic;
 use std::any::Any;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -9,14 +9,14 @@ use std::time::{Duration, Instant};
 
 // A spawn blocking worker thread
 pub struct WorkerThread {
-    sender: SyncSender<Callback>,
-    receiver: Receiver<(Result<Box<dyn Any + Send>, Box<dyn Any + Send>>, Duration)>,
+    sender: SyncSender<Work>,
+    receiver: Receiver<(Result<WorkOutput, Box<dyn Any + Send>>, Duration)>,
 }
 
 impl WorkerThread {
     // spawns a worker thread
     pub fn spawn() -> Self {
-        let (tx_work, rx_work) = channel::<Callback>(0);
+        let (tx_work, rx_work) = channel::<Work>(0);
         let (tx_result, rx_result) = channel(0);
 
         let worker = WorkerThread {
@@ -35,7 +35,7 @@ impl WorkerThread {
         worker
     }
 
-    pub fn try_send(self, f: Callback) -> Option<Callback> {
+    pub fn try_send(self, f: Work) -> Option<Work> {
         let Full(f) = self.sender.try_send(f).err()? else { 
             panic!("unexpected dead worker thread.") 
         };

@@ -1,5 +1,5 @@
 use super::executor::Executor;
-use super::Runtime;
+use super::{Runtime, ThreadPoolHandle};
 use crate::shared_driver::SharedDriver;
 use std::ops::Range;
 use std::rc::Rc;
@@ -161,10 +161,11 @@ impl Config {
     pub fn build(self) -> std::io::Result<Runtime> {
         let executor = Rc::new(Executor::new(self.clone()));
         let driver = SharedDriver::new(self.clone())?;
+        let pool = ThreadPoolHandle::default();
         let rt = Runtime {
             config: self,
             executor,
-
+            pool,
             driver,
         };
         Ok(rt)

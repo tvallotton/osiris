@@ -1,6 +1,8 @@
 use std::any::Any;
+use std::collections::HashMap;
 #[allow(warnings)]
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicI32, AtomicI64};
 use std::time::{Instant, SystemTime};
 
 use self::worker_thread::WorkerThread;
@@ -9,6 +11,7 @@ use super::config::ThreadPoolConfig;
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+pub use handle::ThreadPoolHandle;
 use stats::Stats;
 use std::sync::mpsc::TrySendError::Full;
 use std::sync::mpsc::{sync_channel as channel, Receiver, SyncSender};
@@ -18,18 +21,24 @@ use worker_thread::Thread;
 
 mod handle;
 mod stats;
+mod work;
 mod worker_thread;
 
 const POISONED_MUTEX_ERR: &str = "unexpected spawn_blocking poisoned mutex.";
 const WORKER_THREAD_ERR: &str = "unexpected dead spawn_blocking worker thread.";
 
-type Callback = Box<dyn FnOnce() -> Box<dyn Any + Send> + Send>;
+type WorkOutput = Box<dyn Any + Send>;
+type Work = Box<dyn FnOnce() -> WorkOutput + Send>;
 
 /// # Spawn blocking thread pool
 pub struct ThreadPool {
     config: ThreadPoolConfig,
     stats: Stats,
-    queue: Mutex<VecDeque<Callback>>,
+    id: AtomicI32,
+    results: HashMap<i32, WorkOutput>,
+    // the queued work to be performed
+    queue: Mutex<VecDeque<Work>>,
+    // a queue with the worker threads
     workers: RwLock<VecDeque<WorkerThread>>,
 }
 

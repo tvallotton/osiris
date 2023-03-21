@@ -11,6 +11,7 @@ use std::task::{Context, Poll};
 
 pub use config::{Config, Mode};
 pub(crate) use globals::{RUNTIME, TASK_ID};
+pub use thread_pool::ThreadPoolHandle;
 
 mod config;
 mod executor;
@@ -58,7 +59,7 @@ pub struct Runtime {
     pub(crate) config: Config,
     pub(crate) executor: Rc<Executor>,
     // spawn blocking thread pool
-    // pub(crate) pool: ThreadPool,
+    pub(crate) pool: ThreadPoolHandle,
     pub(crate) driver: SharedDriver,
 }
 
@@ -148,6 +149,7 @@ impl Runtime {
         let Runtime {
             executor,
             config,
+            pool,
             driver,
         } = self;
 
