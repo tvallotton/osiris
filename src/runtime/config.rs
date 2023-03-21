@@ -83,7 +83,7 @@ pub struct ThreadPoolConfig {
     /// The number of spawned threads must
     /// belong to this range. It defaults to
     /// `0..16`.
-    thread_range: Range<u32>,
+    pub thread_range: Range<u32>,
     /// the maximum amount of time a blocking
     /// operation is allowed to wait in the queue.
     ///
@@ -93,11 +93,17 @@ pub struct ThreadPoolConfig {
     /// threads might have been reached. Note that this is not the only
     /// threshold that can cause a blocking thread to be spawned.
     /// It defaults to `Duration::MAX`.
-    max_waiting_time: Duration,
+    pub max_waiting_time: Duration,
     /// The maximum amount of time a thread can remain idle
-    /// before being despawned. It defaults to 10s.
-    /// Note this is the only threshold than can cause a thread to be despawned.
-    thread_idle: Duration,
+    /// before being terminated. It defaults to 10s.
+    /// Note this is the only threshold than can cause a thread to be terminated.
+    pub thread_idle: Duration,
+
+    // Do not use this field. Changes related to this field are considered breaking changes.
+    // To construct a value of this type use `ThreadPoolConfig::default()`. Additional fields may be added
+    // any time
+    #[doc(hidden)]
+    pub do_not_use_this_field: (),
 }
 
 impl Default for ThreadPoolConfig {
@@ -106,12 +112,13 @@ impl Default for ThreadPoolConfig {
             thread_range: 0..16,
             max_waiting_time: Duration::MAX,
             thread_idle: Duration::from_secs(10),
+            do_not_use_this_field: (),
         }
     }
 }
 
 /// Determines whether the kernel will be notified for events, or whether it will be continuously
-/// polling for events.
+/// polling for them.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub enum Mode {
