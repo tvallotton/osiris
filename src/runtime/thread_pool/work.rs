@@ -1,21 +1,20 @@
 use std::any::Any;
-use std::future::Future;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::time::{Duration, Instant};
 
 pub struct Work {
-    pub id: i32,
+    pub id: u32,
     callback: Box<dyn FnOnce() -> Box<dyn Any + Send> + Send>,
 }
 
 pub struct WorkResult {
-    pub id: i32,
+    pub id: u32,
     elapsed: Duration,
     res: Result<Box<dyn Any + Send>, Box<dyn Any + Send>>,
 }
 
 impl Work {
-    pub fn new<F, T>(id: i32, callback: F) -> Self
+    pub fn new<F, T>(id: u32, callback: F) -> Self
     where
         F: FnOnce() -> T + Send,
         T: Send,

@@ -1,44 +1,62 @@
-use super::{Work, WorkOutput};
-use core::panic;
-use std::any::Any;
-use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::mpsc::TrySendError::Full;
+use super::{Work, WorkResult};
+
+use std::sync::mpsc::TrySendError::Disconnected;
 use std::sync::mpsc::{sync_channel as channel, Receiver, SyncSender};
+use std::sync::{PoisonError, RwLock};
 use std::thread::{spawn, Thread};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 // A spawn blocking worker thread
-pub struct WorkerThread {
-    sender: SyncSender<Work>,
-    receiver: Receiver<(Result<WorkOutput, Box<dyn Any + Send>>, Duration)>,
+pub struct Worker {
+    sender: RwLock<Option<SyncSender<Work>>>,
+    receiver: Receiver<WorkResult>,
 }
 
-impl WorkerThread {
+impl Worker {
     // spawns a worker thread
     pub fn spawn() -> Self {
-        let (tx_work, rx_work) = channel::<Work>(0);
-        let (tx_result, rx_result) = channel(0);
+        let (work_sender, work_recv) = channel(0);
+        let (result_sender, result_recv) = channel(0);
 
-        let worker = WorkerThread {
-            sender: tx_work,
-            receiver: rx_result,
+        let worker = Worker {
+            sender: RwLock::new(Some(work_sender)),
+            receiver: result_recv,
         };
 
         spawn(move || {
-            while let Ok(work) = rx_work.recv() {
+            while let Ok(work) = work_recv.recv() {
                 let time = Instant::now();
-                let res = catch_unwind(AssertUnwindSafe(work));
                 // should we unwrap this?
-                tx_result.send((res, time.elapsed())).unwrap();
+                result_sender.send(work.execute()).unwrap();
             }
         });
         worker
     }
-
-    pub fn try_send(self, f: Work) -> Option<Work> {
-        let Full(f) = self.sender.try_send(f).err()? else { 
-            panic!("unexpected dead worker thread.") 
+    // returns `None` on success.
+    pub fn try_send(&self, f: Work) -> Option<Work> {
+        let guard = self.sender.read().unwrap_or_else(ignore_poison);
+        let Some(sender) = &*guard else {
+            return Some(f)
         };
-        Some(f)
+        let error = sender.try_send(f).err()?;
+        let Disconnected(f) = error else {
+            return Some(f);
+        };
+        drop(guard);
+        self.close();
+        return Some(f);
     }
+
+    pub fn is_closed(&self) -> bool {
+        self.sender.read().unwrap_or_else(ignore_poison).is_none()
+    }
+
+    pub fn close(&self) {
+        let mut sender = self.sender.write().unwrap_or_else(ignore_poison);
+        *sender = None;
+    }
+}
+
+fn ignore_poison<T>(e: PoisonError<T>) -> T {
+    e.into_inner()
 }
