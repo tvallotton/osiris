@@ -10,7 +10,7 @@ pub struct Work {
 pub struct WorkResult {
     pub id: u32,
     elapsed: Duration,
-    res: Result<Box<dyn Any + Send>, Box<dyn Any + Send>>,
+    pub res: Result<Box<dyn Any + Send>, Box<dyn Any + Send>>,
 }
 
 impl Work {

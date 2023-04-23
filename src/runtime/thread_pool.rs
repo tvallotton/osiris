@@ -1,9 +1,12 @@
 use std::any::Any;
+
 use std::cmp::Ordering;
 use std::collections::HashMap;
 #[allow(warnings)]
 use std::collections::VecDeque;
-use std::future::poll_fn;
+use std::future::{poll_fn, Future};
+use std::iter::Once;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::Ordering::AcqRel;
 use std::sync::atomic::{AtomicI32, AtomicI64, AtomicU32};
 use std::task::{Poll, Waker};
@@ -12,6 +15,7 @@ use std::time::{Instant, SystemTime};
 use self::worker_thread::WorkerThread;
 
 use super::config::ThreadPoolConfig;
+use super::current_unwrap;
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -28,20 +32,53 @@ mod stats;
 mod work;
 mod worker_thread;
 
-const POISONED_MUTEX_ERR: &str = "unexpected spawn_blocking poisoned mutex.";
-const WORKER_THREAD_ERR: &str = "unexpected dead spawn_blocking worker thread.";
 
 /// # Spawn blocking thread pool
 pub struct ThreadPool {
     config: ThreadPoolConfig,
     stats: Stats,
-    id: AtomicU32,
+    id: u32,
     results: HashMap<u32, WorkResult>,
     // the queued work to be performed
-    queue: Mutex<VecDeque<Work>>,
-    wakers: Mutex<HashMap<u32, Waker>>,
+    queue: VecDeque<Work>,
     // a queue with the worker threads
-    workers: RwLock<VecDeque<Worker>>,
+    workers: VecDeque<Worker>,
+}
+
+pub fn lock_thread_pool() -> impl DerefMut<Target = ThreadPool> {
+    static GLOBAL_THREAD_POOL : Mutex<ThreadPool> = Mutex::new(ThreadPool {
+        id: 0, 
+        config: ThreadPoolConfig::default(),
+        stats: Stats::new(),
+        results: Default::default(), 
+        queue: Default::default(), 
+        workers: Default::default(), 
+    });
+    GLOBAL_THREAD_POOL.lock().unwrap_or_else(ignore_poison)
+}
+
+pub fn spawn_blocking<F, T>(f: F) -> impl Future<Output = T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let rt = current_unwrap("spawn_blocking");
+    let handle = None;
+    poll_fn(|cx| {
+        let Some(handle) = handle else {
+            handle = rt.pool
+            return Poll::Pending
+        };
+
+        let Some(result) = rt.pool.try_get_result(handle.id) else {
+            rt.pool.wakers.lock().unwrap_or_else(ignore_poison).insert(handle.id, cx.waker().clone());
+            return Poll::Pending
+        };
+        match result {
+            WorkResult::Ok(v) => Poll::Ready(v),
+            WorkResult::Panic(e) => panic!(e),
+        }
+    })
 }
 
 impl ThreadPool {
@@ -68,40 +105,23 @@ impl ThreadPool {
             break Some(());
         }
     }
-    /// computes the number of servers required using the
-    /// queuing rule of thumb:
-    /// ```
-    /// s > N*r/T
-    /// ```
-    /// where `r` is the service time, and N/T is the arival rate.
-    fn n_servers(&self) -> usize {
-        todo!()
-    }
 
-    pub fn push_work<T, F>(&self, f: F)
+    pub fn push_work<T, F>(&self, f: F, waker: Waker) -> Handle
     where
         F: FnOnce() -> T + Send + 'static,
         T: Send + 'static,
     {
-        let mut push_work = Some(|waker| {
-            let id = self.id.fetch_add(1, AcqRel);
-            self.queue
-                .lock()
-                .unwrap_or_else(ignore_poison)
-                .push_back(Work::new(id, f));
-            self.wakers
-                .lock()
-                .unwrap_or_else(ignore_poison)
-                .insert(id, waker);
-        });
+        let id = self.id.fetch_add(1, AcqRel);
+        self.queue
+            .lock()
+            .unwrap_or_else(ignore_poison)
+            .push_back(Work::new(id, f));
+        self.wakers
+            .lock()
+            .unwrap_or_else(ignore_poison)
+            .insert(id, waker);
 
-        poll_fn(|cx| {
-            if let Some(push_work) = push_work.take() {
-                push_work(cx.waker().clone());
-                return Poll::Pending;
-            }
-            let value = self.wakers.lock().unwrap_or_else(ignore_poison);
-        })
+        Handle { pool: self, id }
     }
 
     pub fn spawn_worker(&self) {

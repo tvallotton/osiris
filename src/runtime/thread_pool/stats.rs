@@ -3,8 +3,8 @@ use std::time::Duration;
 #[derive(Clone, Copy)]
 pub struct Stats;
 impl Stats {
-    pub fn new() -> Stats {
-        todo!()
+    pub const fn new() -> Stats {
+        Stats
     }
 
     pub fn register_request(&mut self) {

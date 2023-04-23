@@ -3,7 +3,7 @@ use super::{Work, WorkResult};
 use std::sync::mpsc::TrySendError::Disconnected;
 use std::sync::mpsc::{sync_channel as channel, Receiver, SyncSender};
 use std::sync::{PoisonError, RwLock};
-use std::thread::{spawn, Thread};
+use std::thread::spawn;
 use std::time::Instant;
 
 // A spawn blocking worker thread
@@ -32,19 +32,21 @@ impl Worker {
         });
         worker
     }
-    // returns `None` on success.
-    pub fn try_send(&self, f: Work) -> Option<Work> {
+
+    pub fn try_send(&self, f: Work) -> Result<(), Work> {
         let guard = self.sender.read().unwrap_or_else(ignore_poison);
         let Some(sender) = &*guard else {
-            return Some(f)
+            return Err(f)
         };
-        let error = sender.try_send(f).err()?;
+        let Some(error) = sender.try_send(f).err() else {
+            return Ok(())
+        };
         let Disconnected(f) = error else {
-            return Some(f);
+            return Err(f);
         };
         drop(guard);
         self.close();
-        return Some(f);
+        return Err(f);
     }
 
     pub fn is_closed(&self) -> bool {
