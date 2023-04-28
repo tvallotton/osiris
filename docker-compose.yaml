@@ -4,7 +4,8 @@ services:
     container_name: osiris
     build: .
     volumes:
-      - ./:/home/osiris
+      - ./:/root/osiris
+      - /root/osiris/target
     command: "tail -f /dev/null"
     privileged: true
     tty: true

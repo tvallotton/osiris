@@ -1,5 +1,5 @@
-FROM rust:1.66
+FROM rust:latest
 WORKDIR /root/osiris
 RUN mkdir /root/.config
 COPY . .
-RUN cargo install cargo-watch
+
