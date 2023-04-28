@@ -15,7 +15,6 @@ macros = ["osiris-macros"]
 debug = true
 
 [dependencies]
-io-uring = { version = "0.5.6" }
 libc = "0.2.138"
 osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }
 pin-project-lite = "0.2.9"

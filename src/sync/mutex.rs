@@ -117,10 +117,10 @@ impl<T> Mutex<T> {
     ///
     /// let mutex = Mutex::new(0);
     /// ```
-    pub fn new(value: T) -> Mutex<T> {
+    pub const fn new(value: T) -> Mutex<T> {
         Mutex {
-            waiters: RefCell::default(),
-            waiter_id: Cell::default(),
+            waiters: RefCell::new(VecDeque::new()),
+            waiter_id: Cell::new(0),
             value: RefCell::new(value),
         }
     }
