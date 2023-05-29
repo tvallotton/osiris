@@ -9,6 +9,7 @@ edition = "2021"
 [features]
 unstable = ["io-uring/unstable"]
 unsafe_completion = []
+net = []
 macros = ["osiris-macros"]
 
 
@@ -27,4 +28,4 @@ io-uring = { version = "0.5.6" }
 
 [dev-dependencies]
 dotenv = "0.15.0"
-osiris = { path = ".", features = ["unstable", "macros"] }
+osiris = { path = ".", features = ["unstable", "macros", "net"] }
