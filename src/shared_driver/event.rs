@@ -10,7 +10,7 @@ use io_uring::squeue;
 #[cfg(target_os = "linux")]
 use io_uring::squeue::Entry;
 use std::future::{poll_fn, Future};
-use std::io;
+use std::io::{self, Error};
 use std::mem::forget;
 use std::ops::ControlFlow;
 use std::ops::ControlFlow::*;
@@ -52,6 +52,11 @@ impl<T> Future for Event<T> {
         };
         self.requires_cancel = false;
         let data = self.data.take().unwrap();
+
+        if entry.result() < 0 {
+            return Poll::Ready((Err(Error::from_raw_os_error(-entry.result())), data));
+        }
+
         Poll::Ready((Ok(entry), data))
     }
 }

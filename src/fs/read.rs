@@ -33,6 +33,7 @@ pub async fn read(path: impl AsRef<Path>) -> Result<Vec<u8>> {
 
 async fn _read(path: &Path) -> io::Result<Vec<u8>> {
     let file = File::open(path).await?;
+    println!("opened");
     let len = file.metadata().await?.len();
     let buf = Vec::with_capacity(len as _);
     let (result, buf) = file.read_at(buf, 0).await;
@@ -82,4 +83,11 @@ async fn _read_to_string(path: &Path) -> io::Result<String> {
             )
         }),
     }
+}
+
+#[test]
+fn read_to_string_non_existent() {
+    crate::block_on(read_to_string("non existent file"))
+        .unwrap()
+        .unwrap_err();
 }

@@ -50,7 +50,8 @@ pub fn sleep(time: Duration) -> impl Future<Output = ()> + Unpin {
     // Safety: the resource (timespec) was passed to submit
     let mut event = unsafe { submit(entry, timespec) };
     poll_fn(move |cx| {
-        ready!(Pin::new(&mut event).poll(cx)).0.unwrap();
+        let err = ready!(Pin::new(&mut event).poll(cx)).0.unwrap_err();
+        assert_eq!(err.raw_os_error().unwrap(), 62, "{:?}", err);
         Poll::Ready(())
     })
 }
