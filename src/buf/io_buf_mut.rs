@@ -7,7 +7,7 @@ use crate::buf::IoBuf;
 ///
 /// # Safety
 ///
-/// Buffers passed to `io-uring` operations must reference a stable memory
+/// IoBuffers passed to `io-uring` operations must reference a stable memory
 /// region. While the runtime holds ownership to a buffer, the pointer returned
 /// by `stable_mut_ptr` must remain valid even if the `IoBufMut` value is moved.
 pub unsafe trait IoBufMut: IoBuf {

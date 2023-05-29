@@ -8,6 +8,7 @@ edition = "2021"
 
 [features]
 unstable = ["io-uring/unstable"]
+unsafe_completion = []
 macros = ["osiris-macros"]
 
 
@@ -18,6 +19,7 @@ debug = true
 libc = "0.2.138"
 osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }
 pin-project-lite = "0.2.9"
+socket2 = "0.5.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 io-uring = { version = "0.5.6" }

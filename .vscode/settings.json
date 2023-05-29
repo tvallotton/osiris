@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "socket.h": "c"
+    },
+    "rust-analyzer.showUnlinkedFileNotification": false
+}

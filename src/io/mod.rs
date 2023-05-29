@@ -1,4 +1,1 @@
-pub trait IoBuf {
-
-    
-}
+pub trait IoBuf {}

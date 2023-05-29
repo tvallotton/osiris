@@ -13,6 +13,8 @@ pub use task::{detach, spawn};
 pub mod buf;
 #[cfg(target_os = "linux")]
 pub mod fs;
+#[cfg(target_os = "linux")]
+pub mod net;
 pub mod runtime;
 pub mod shared_driver;
 pub mod sync;
@@ -20,4 +22,4 @@ pub mod task;
 #[cfg(target_os = "linux")]
 pub mod time;
 #[cfg(feature = "macros")]
-pub use osiris_macros::{main, test};
+pub use osiris_macros::main;
