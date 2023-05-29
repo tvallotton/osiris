@@ -1,21 +1,15 @@
-use crate::{
-    buf::{IoBuf, IoBufMut},
-    shared_driver::submit,
-};
+use crate::buf::{IoBuf, IoBufMut};
+use crate::shared_driver::submit;
 
 use super::utils::invalid_input;
-use io_uring::{
-    opcode::{Connect, Read, Recv, Write},
-    types::Fd,
-};
+use io_uring::opcode::{Connect, Read, Recv, Write};
+use io_uring::types::Fd;
 
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use std::{
-    future::Future,
-    io::Result,
-    net::{SocketAddr, ToSocketAddrs},
-    os::fd::AsRawFd,
-};
+use std::future::Future;
+use std::io::Result;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::os::fd::AsRawFd;
 
 pub struct UdpSocket {
     socket: socket2::Socket,

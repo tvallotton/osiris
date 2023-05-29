@@ -13,16 +13,17 @@ use crate::fs::read_to_string;
 
 use std::io::Result;
 use std::net::IpAddr;
+use std::rc::Rc;
 
 pub(super) async fn lookup(name: &str) -> Result<Option<IpAddr>> {
     // // We may be able to use the /etc/hosts resolver.
-    // if let Some(addr) = from_hosts(name).await? {
-    //     return Ok(addr);
-    // }
-    from_hosts(name).await
-    // // Otherwise, we need to use the manual resolver.
-    // let resolv = ResolvConf::load().await?;
-    // dns_with_search(name, &resolv).await
+    let addr = from_hosts(name).await?;
+    if addr.is_some() {
+        return Ok(addr);
+    }
+
+    // let resolv = ResolvConf::load();
+    todo!()
 }
 
 /// Try parsing the name from the "hosts" file.
@@ -73,24 +74,57 @@ impl Default for ResolvConf {
 }
 
 impl ResolvConf {
-    async fn load() -> Self {
-        let mut out = Self::default();
-        out.try_load().await.ok();
-        out
+    fn load() -> Rc<Self> {
+        thread_local! {
+            static CONF: Rc<ResolvConf> = {
+                let mut conf = ResolvConf::default();
+                conf.load_from_file();
+                Rc::new(conf)
+            };
+        }
+        CONF.with(Rc::clone)
     }
 
-    async fn try_load(&mut self) -> Result<()> {
-        let conf = read_to_string("/etc/resolve.conf").await?;
-        for line in conf.lines() {
+    fn load_from_file(&mut self) {
+        // we do this load synchronously to avoid mutexes on the thread local.
+        // it should be fine since we only do this once.
+        let Ok(conf) = std::fs::read_to_string("/etc/resolv.conf") else { return; };
+        for mut line in conf.lines() {
+            if let Some(cmmt) = line.find('#') {
+                line = &line[..cmmt];
+            }
+
             let mut columns = line.split_ascii_whitespace();
             let Some(key) = columns.next() else { continue };
             let Some(value) = columns.next() else { continue };
-            if key == "nameserver" {
-                let Ok(ip) =  value.parse() else { continue };
-                self.name_servers.push(ip);
+            println!("{key:?}");
+
+            match key {
+                "search" => {
+                    self.search = Some(value.into());
+                }
+                "nameserver" => {
+                    let Ok(ip) =  value.parse() else { continue };
+                    self.name_servers.push(ip);
+                }
+                "options" => {
+                    if let Some(ndots) = value.strip_prefix("ndots:") {
+                        let Ok(ndots) = ndots.parse() else { continue };
+                        self.ndots = ndots;
+                    }
+                    if let Some(timeout) = value.strip_prefix("timeout:") {
+                        let Ok(timeout) = timeout.parse() else { continue };
+                        self.timeout = timeout;
+                    }
+
+                    if let Some(ndots) = value.strip_prefix("attempts:") {
+                        let Ok(ndots) = ndots.parse() else { continue };
+                        self.ndots = ndots;
+                    }
+                }
+                _ => continue,
             }
         }
-        Ok(())
     }
 }
 
@@ -104,5 +138,5 @@ fn lookup_from_host_test() {
 
 #[test]
 fn resolve_conf_load_test() {
-    crate::block_on(async { dbg!(ResolvConf::load().await) }).unwrap();
+    crate::block_on(async { dbg!(ResolvConf::load()) }).unwrap();
 }

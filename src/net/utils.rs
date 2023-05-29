@@ -1,7 +1,5 @@
-use std::{
-    io::{Error, Result},
-    net::SocketAddr,
-};
+use std::io::{Error, Result};
+use std::net::SocketAddr;
 
 pub(crate) fn socket(addr: SocketAddr, ty: i32, protocol: i32) -> Result<i32> {
     use libc::*;

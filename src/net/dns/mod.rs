@@ -1,4 +1,5 @@
-use std::{io::Result, net::IpAddr};
+use std::io::Result;
+use std::net::IpAddr;
 
 mod unix;
 
