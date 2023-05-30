@@ -107,7 +107,7 @@ pub fn remove_comment(line: &[u8]) -> &[u8] {
     let Some(i) = line
         .iter()
         .enumerate()
-        .find(|(i, c)| **c == b'#')
+        .find(|(_, c)| **c == b'#')
         .map(|(i, _)| i) else {
             return line;
         };
