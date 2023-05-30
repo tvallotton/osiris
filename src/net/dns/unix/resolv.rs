@@ -1,50 +1,8 @@
-//! Implementation of `lookup` for Unix systems.
-//!
-//! This is largely based on the lookup system used in musl libc. Main differences:
-//!
-//! - Files are read asynchronously.
-//! - We check for AAAA addresses after checking for A addresses.
-//! - Instead of manually waiting for sockets to become readable, we use several sockets
-//!   spawned on different tasks and polled using an executor.
-//! - We use a more structured DNS protocol implementation instead of messy raw byte manipulation.
-//! - The `memchr` crate is used to optimize certain operations.
-
-use crate::fs::read_to_string;
-
-use std::io::Result;
-use std::net::IpAddr;
-use std::rc::Rc;
-
-pub(super) async fn lookup(name: &str) -> Result<Option<IpAddr>> {
-    // // We may be able to use the /etc/hosts resolver.
-    let addr = from_hosts(name).await?;
-    if addr.is_some() {
-        return Ok(addr);
-    }
-
-    // let resolv = ResolvConf::load();
-    todo!()
-}
-
-/// Try parsing the name from the "hosts" file.
-async fn from_hosts(name: &str) -> Result<Option<IpAddr>> {
-    // TODO: do not read the file all at once.
-    let hosts = read_to_string("/etc/hosts").await?;
-    for line in hosts.lines() {
-        let mut columns = line.split_ascii_whitespace();
-        let Some(addr) = columns.next() else { continue };
-        for hostname in columns {
-            if name == hostname {
-                return Ok(addr.parse().ok());
-            }
-        }
-    }
-    Ok(None)
-}
+use std::{net::IpAddr, rc::Rc};
 
 /// Structural form of `resolv.conf`.
 #[derive(Clone, Debug)]
-struct ResolvConf {
+pub struct ResolvConf {
     /// The list of name servers.
     name_servers: Vec<IpAddr>,
 
@@ -74,7 +32,7 @@ impl Default for ResolvConf {
 }
 
 impl ResolvConf {
-    fn load() -> Rc<Self> {
+    pub fn load() -> Rc<Self> {
         thread_local! {
             static CONF: Rc<ResolvConf> = {
                 let mut conf = ResolvConf::default();
@@ -126,17 +84,4 @@ impl ResolvConf {
             }
         }
     }
-}
-
-#[test]
-fn lookup_from_host_test() {
-    crate::block_on(async { dbg!(from_hosts("localhost").await) })
-        .unwrap()
-        .unwrap()
-        .unwrap();
-}
-
-#[test]
-fn resolve_conf_load_test() {
-    crate::block_on(async { dbg!(ResolvConf::load()) }).unwrap();
 }

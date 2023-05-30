@@ -89,4 +89,7 @@ fn read_to_string_non_existent() {
     crate::block_on(read_to_string("non existent file"))
         .unwrap()
         .unwrap_err();
+    crate::block_on(read("non existent file"))
+        .unwrap()
+        .unwrap_err();
 }

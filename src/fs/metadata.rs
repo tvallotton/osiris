@@ -3,7 +3,7 @@ use crate::shared_driver::submit;
 use io_uring::opcode::Statx;
 use io_uring::types::Fd;
 use libc::{statx, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
-use std::io::{self, Error, Result};
+use std::io::{self, Result};
 use std::mem::MaybeUninit;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
@@ -23,10 +23,7 @@ async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
     .mask(libc::STATX_ALL as _)
     .build();
     let (cqe, (statx, _)) = unsafe { submit(sqe, (statxbuf, path)).await };
-    let cqe = cqe?;
-    if cqe.result() < 0 {
-        return Err(Error::from_raw_os_error(-cqe.result()));
-    }
+    cqe?;
     // Safety: initialized by io-uring
     let statx = unsafe { MaybeUninit::assume_init(*statx) };
     Ok(Metadata { statx })

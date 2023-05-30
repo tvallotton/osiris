@@ -7,6 +7,7 @@ use std::rc::Rc;
 use io_uring::IoUring;
 
 /// Configuration struct for an osiris runtime.
+/// The default values for configuration options should not be considered stable.
 /// # Example
 /// ```rust
 /// # use osiris::runtime::{Config, Runtime, Mode};
@@ -59,7 +60,7 @@ pub struct Config {
     /// Determines the initial allocation size. When the runtime is expected to run for a
     /// long period of time, or it is expected to manage millions of tasks then a bigger value
     /// is better. When the runtime is going to be used for a single io-event then a smaller value
-    /// is best. It defaults to 4096.
+    /// is best. It defaults to 1024.
     pub init_capacity: usize,
 
     // Do not use this field. Changes related to this field are considered breaking changes.
@@ -97,7 +98,7 @@ impl Default for Config {
             ring_entries: 2048,
             #[cfg(target_os = "linux")]
             mode: Mode::default(),
-            init_capacity: 4096,
+            init_capacity: 1024,
             do_not_use_this_field: (),
         }
     }

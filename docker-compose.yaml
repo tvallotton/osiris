@@ -3,9 +3,19 @@ services:
   linux:
     container_name: osiris
     build: .
+    ports:
+      - 8000:8000
+      - 8001:8001
     volumes:
-      - ./:/root/osiris
-      - /root/osiris/target
+      - ./.git:/root/osiris/.git
+      - ./src:/root/osiris/src
+      - ./osiris-macros:/root/osiris-macros
+      - ./hooks:/root/osiris/hooks
+      - ./tests:/root/osiris/tests
+      - ./Cargo.toml:/root/osiris/Cargo.toml
+      - ./Cargo.lock:/root/osiris/Cargo.lock
+      - ./Dockerfile:/root/osiris/Dockerfile
+      - ./docker-compose.yaml:/root/osiris/docker-compose.yaml
     command: "tail -f /dev/null"
     privileged: true
     tty: true

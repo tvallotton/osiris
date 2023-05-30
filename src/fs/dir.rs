@@ -3,7 +3,7 @@ use crate::shared_driver::submit;
 use io_uring::opcode::{MkDirAt, UnlinkAt};
 use io_uring::types::Fd;
 use libc::AT_FDCWD;
-use std::io::{Error, Result};
+use std::io::Result;
 use std::path::Path;
 
 /// Creates a new, empty directory at the provided path
@@ -34,11 +34,7 @@ async fn _create_dir(path: &Path) -> Result<()> {
     let path = cstr(path)?;
     let sqe = MkDirAt::new(Fd(libc::AT_FDCWD), path.as_ptr()).build();
     let (cqe, _) = unsafe { submit(sqe, path).await };
-    if cqe?.result() < 0 {
-        Err(Error::last_os_error())
-    } else {
-        Ok(())
-    }
+    cqe.map(|_| ())
 }
 
 /// Removes an empty directory.
@@ -78,10 +74,6 @@ async fn _remove_dir(path: &Path) -> Result<()> {
         .flags(libc::AT_REMOVEDIR)
         .build();
     // Safety: the path is protected by submit
-    let (res, _) = unsafe { submit(sqe, path).await };
-    let cqe = res?;
-    if cqe.result() < 0 {
-        return Err(Error::from_raw_os_error(-cqe.result()));
-    }
-    Ok(())
+    let (cqe, _) = unsafe { submit(sqe, path).await };
+    cqe.map(|_| ())
 }
