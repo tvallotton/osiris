@@ -24,3 +24,4 @@ pub mod task;
 pub mod time;
 #[cfg(feature = "macros")]
 pub use osiris_macros::main;
+mod stream;

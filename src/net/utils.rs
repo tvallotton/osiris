@@ -1,8 +1,8 @@
+use crate::fs::File;
+use memchr::memchr;
 use std::io::{Error, Result};
 use std::mem::take;
 use std::net::SocketAddr;
-
-use crate::fs::File;
 
 pub(crate) fn socket(addr: SocketAddr, ty: i32, protocol: i32) -> Result<i32> {
     use libc::*;
@@ -104,13 +104,9 @@ pub(crate) fn socket_addr(addr: &SocketAddr) -> (SocketAddrCRepr, libc::socklen_
 }
 
 pub fn remove_comment(line: &[u8]) -> &[u8] {
-    let Some(i) = line
-        .iter()
-        .enumerate()
-        .find(|(_, c)| **c == b'#')
-        .map(|(i, _)| i) else {
-            return line;
-        };
+    let Some(i) = memchr(b'#', line) else {
+        return line
+    };
     &line[..i]
 }
 
@@ -119,8 +115,11 @@ pub fn is_whitespace(c: &u8) -> bool {
 }
 
 pub async fn lines(path: &str, capacity: usize) -> Result<LineReader> {
+    let file = File::open(path).await?;
+
     Ok(LineReader {
-        file: File::open(path).await?,
+        end: file.metadata().await?.len(),
+        file,
         buf: Vec::with_capacity(capacity),
         seek: 0,
         char: 0,
@@ -132,14 +131,15 @@ pub struct LineReader {
     buf: Vec<u8>,
     seek: usize,
     char: usize,
+    end: usize,
 }
 
 impl LineReader {
     fn try_read_line(&mut self) -> Option<*const [u8]> {
-        let buf = &self.buf[self.char..];
-        let (loc, _) = buf.iter().enumerate().find(|(_, c)| **c == b'\n')?;
-        self.char += loc;
-        Some(&buf[..self.char + 1])
+        let buf = self.buf.get(self.char..)?;
+        let i = memchr(b'\n', buf)?;
+        self.char += i + 1;
+        Some(buf.get(..(i + 1))?)
     }
 
     pub async fn next(&mut self) -> Result<Option<&[u8]>> {
@@ -152,11 +152,12 @@ impl LineReader {
     }
 
     async fn fetch(&mut self) -> Result<()> {
+        println!("fetch");
         self.seek += self.char;
         self.char = 0;
         let (res, buf) = self.file.read_at(take(&mut self.buf), self.seek as _).await;
         self.buf = buf;
-        res?;
+        unsafe { self.buf.set_len(res?) };
         Ok(())
     }
 }

@@ -192,8 +192,8 @@ impl Metadata {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     #[must_use]
-    pub fn len(&self) -> u64 {
-        self.statx.stx_size
+    pub fn len(&self) -> usize {
+        self.statx.stx_size as usize
     }
 }
 
