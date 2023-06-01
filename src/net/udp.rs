@@ -1,13 +1,16 @@
 use crate::buf::{IoBuf, IoBufMut};
 use crate::shared_driver::submit;
 
-use super::utils::invalid_input;
-use io_uring::opcode::{Connect, Read, Recv, Write};
+use super::utils::{invalid_input, socket_addr};
+
+use io_uring::opcode::{Connect, Read, Recv, SendMsg, Write};
 use io_uring::types::Fd;
 
+use libc::{iovec, msghdr};
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::future::Future;
 use std::io::Result;
+use std::mem::zeroed;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::os::fd::AsRawFd;
 
@@ -74,6 +77,35 @@ impl UdpSocket {
         let sqe = Write::new(Fd(fd), ptr, len).build();
         let (res, buf) = unsafe { submit(sqe, buf).await };
         let res = res.map(|r| r.result() as usize);
+        (res, buf)
+    }
+
+    pub async fn send_to<B: IoBuf>(&self, buf: B, addr: SocketAddr) -> (Result<usize>, B) {
+        let fd = self.socket.as_raw_fd();
+        // we define the iovec from the buffer
+        let msg_iov: iovec = iovec {
+            iov_base: buf.stable_ptr().cast_mut().cast(),
+            iov_len: buf.bytes_init(),
+        };
+
+        let msghdr: msghdr = unsafe { zeroed() };
+
+        let (addr, len) = socket_addr(&addr);
+
+        // we allocate everything once
+        let mut msg = Box::new((msghdr, msg_iov, addr));
+
+        // we set the address to point to the box
+        msg.0.msg_name = &mut msg.2 as *mut _ as *mut _;
+        msg.0.msg_namelen = len;
+
+        // we set the iovec to point to the box
+        msg.0.msg_iov = &mut msg.1;
+        msg.0.msg_iovlen = 1;
+
+        let sqe = SendMsg::new(Fd(fd), &msg.0).build();
+        let (res, (_, buf)) = unsafe { submit(sqe, (msg, buf)).await };
+        let res = res.map(|sqe| sqe.result() as usize);
         (res, buf)
     }
 }

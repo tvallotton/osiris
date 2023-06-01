@@ -4,19 +4,19 @@ use std::{net::IpAddr, rc::Rc};
 #[derive(Clone, Debug)]
 pub struct ResolvConf {
     /// The list of name servers.
-    name_servers: Vec<IpAddr>,
+    pub name_servers: Vec<IpAddr>,
 
     /// Maximum number of segments in the domain name.
-    ndots: u8,
+    pub ndots: u8,
 
     /// Maximum timeout in seconds.
-    timeout: u8,
+    pub timeout: u8,
 
     /// Maximum number of retries.
-    attempts: u8,
+    pub attempts: u8,
 
     /// The search domain to use.
-    search: Option<String>,
+    pub search: Option<String>,
 }
 
 impl Default for ResolvConf {

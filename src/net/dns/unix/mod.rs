@@ -4,16 +4,16 @@ use std::{io::Result, net::IpAddr, str::from_utf8};
 
 mod lookup_serv;
 mod resolv;
-
-pub async fn lookup(name: &str) -> Result<Option<IpAddr>> {
+mod search;
+pub async fn lookup(name: &str) -> Result<Vec<IpAddr>> {
     // // We may be able to use the /etc/hosts resolver.
     let addr = from_hosts(name).await?;
-    if addr.is_some() {
-        return Ok(addr);
+    if let Some(addr) = addr {
+        return Ok(vec![addr]);
     }
 
-    let _resolv = ResolvConf::load();
-    todo!()
+    let resolv = ResolvConf::load();
+    search::dns_search(name, &resolv).await
 }
 
 /// Try parsing the name from the "hosts" file.
@@ -47,4 +47,13 @@ fn lookup_from_host_test() {
 #[test]
 fn resolve_conf_load_test() {
     crate::block_on(async { dbg!(ResolvConf::load()) }).unwrap();
+}
+
+#[test]
+fn lookup_test() {
+    crate::block_on(async {
+        let ips = dbg!(lookup("www.wikipedia.com").await.unwrap());
+        assert!(ips.contains(&"208.80.154.232".parse().unwrap()))
+    })
+    .unwrap();
 }
