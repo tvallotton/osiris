@@ -1,7 +1,7 @@
 // # Attribution
 // credits to the authors at osiris
 use crate::fs::File;
-use crate::shared_driver::submit;
+use crate::reactor::submit;
 use std::io::{self, Error, Result};
 use std::path::Path;
 
@@ -306,7 +306,7 @@ impl OpenOptions {
         let (entry, _) = unsafe { submit(entry, path) }.await;
 
         Ok(File {
-            fd: Some(entry?.result()),
+            fd: entry?.result(),
         })
     }
 

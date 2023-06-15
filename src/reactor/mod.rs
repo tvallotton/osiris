@@ -1,4 +1,4 @@
-use self::driver::Driver;
+use self::reactor::Driver;
 use crate::runtime::Config;
 #[cfg(target_os = "linux")]
 use io_uring::cqueue;
@@ -9,18 +9,19 @@ use std::io;
 use std::rc::Rc;
 #[cfg(target_os = "linux")]
 use std::task::{Context, Poll};
-mod driver;
 #[cfg(target_os = "linux")]
 mod event;
+pub mod op;
+mod reactor;
 #[cfg(target_os = "linux")]
 pub(crate) use event::submit;
 
 /// The driver stores the wakers for all the tasks that
 /// are waiting for IO and it will wake them when it is
 #[derive(Clone)]
-pub(crate) struct SharedDriver(Rc<RefCell<Driver>>);
+pub(crate) struct Reactor(Rc<RefCell<Driver>>);
 
-impl SharedDriver {
+impl Reactor {
     // creates a new shared driver.
     pub fn new(config: Config) -> io::Result<Self> {
         let driver = Driver::new(config)?;
@@ -66,7 +67,7 @@ impl SharedDriver {
         unsafe { self.0.borrow_mut().push(entry) }
     }
 }
-fn current() -> SharedDriver {
+fn current() -> Reactor {
     const ERR_MSG: &str =
         "attempted to perform async I/O from the outside of an osiris runtime context.";
     crate::runtime::current().expect(ERR_MSG).driver

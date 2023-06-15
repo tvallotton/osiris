@@ -17,7 +17,7 @@ pub mod fs;
 #[cfg(feature = "net")]
 pub mod net;
 pub mod runtime;
-pub mod shared_driver;
+pub mod reactor;
 pub mod sync;
 pub mod task;
 #[cfg(target_os = "linux")]

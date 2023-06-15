@@ -1,5 +1,5 @@
 #![allow(warnings)]
-use super::{driver, SharedDriver};
+use super::{reactor, Reactor};
 use crate::detach;
 use crate::runtime::current;
 #[cfg(target_os = "linux")]
@@ -25,7 +25,7 @@ use std::thread::panicking;
 /// if the io wasn't completed
 pub struct Event<T: 'static> {
     entry: Option<squeue::Entry>,
-    driver: SharedDriver,
+    driver: Reactor,
     id: u64,
     data: Option<T>,
     requires_cancel: bool,

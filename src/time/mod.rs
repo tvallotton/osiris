@@ -37,7 +37,7 @@ pub mod timeout;
 /// This future panics if called outside the context of
 /// an osiris runtime.
 pub fn sleep(time: Duration) -> impl Future<Output = ()> + Unpin {
-    use crate::shared_driver::submit;
+    use crate::reactor::submit;
     use io_uring::opcode::Timeout;
     use io_uring::types::Timespec;
     let timespec = Timespec::new()

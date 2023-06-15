@@ -1,17 +1,14 @@
 #![allow(clippy::missing_errors_doc, unused_imports)]
 
 use crate::buf::{IoBuf, IoBufMut};
-
-#[cfg(target_os = "linux")]
-use io_uring::{opcode::*, types, types::Fd};
-use libc::AT_FDCWD;
-
 use crate::detach;
 use crate::fs::Metadata;
-use crate::shared_driver::submit;
+use crate::reactor::op;
 
+use io_uring::types::FsyncFlags;
+use libc::AT_FDCWD;
 use std::io::{self, Error, Result};
-use std::mem::MaybeUninit;
+use std::mem::{forget, MaybeUninit};
 use std::path::Path;
 
 use super::{cstr, OpenOptions};
@@ -39,13 +36,12 @@ use super::{cstr, OpenOptions};
 /// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 pub struct File {
-    pub(crate) fd: Option<i32>,
+    pub(crate) fd: i32,
 }
 
 impl Drop for File {
     fn drop(&mut self) {
-        let Some(fd) = self.fd.take() else { return; };
-        detach(async move { File { fd: Some(fd) }.close().await });
+        detach(op::close(self.fd));
     }
 }
 
@@ -180,11 +176,9 @@ impl File {
     /// ```
 
     pub async fn close(self) -> io::Result<()> {
-        let fd = self.fd.unwrap();
-        let entry = io_uring::opcode::Close::new(Fd(fd)).build();
-        // Safety: no resources need to be tracked
-        let (entry, _) = unsafe { submit(entry, ()).await };
-        entry?;
+        let fd = self.fd;
+        forget(self);
+        op::close(fd).await?;
         Ok(())
     }
 
@@ -232,19 +226,7 @@ impl File {
     ///
     /// [`Ok(n)`]: Ok
     pub async fn write_at<T: IoBuf>(&self, buf: T, pos: usize) -> (Result<usize>, T) {
-        let Some(fd) = self.fd else { unreachable!() };
-
-        let len = buf.bytes_init();
-        let buf = buf.slice(pos..len);
-
-        let entry = Write::new(Fd(fd), buf.stable_ptr(), buf.len() as _)
-            .offset(pos as _)
-            .build();
-        // Safety: the buffer is guarded by submit
-        match unsafe { submit(entry, buf).await } {
-            (Err(err), buf) => (Err(err), buf.into_inner()),
-            (Ok(entry), buf) => (Ok(entry.result() as _), buf.into_inner()),
-        }
+        op::write_at(self.fd, buf, pos as _).await
     }
 
     /// Read some bytes at the specified offset from the file into the specified
@@ -289,19 +271,13 @@ impl File {
     /// f.close().await?;
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
-    pub async fn read_at<T: IoBufMut>(&self, mut buf: T, pos: u64) -> (Result<usize>, T) {
-        let Some(fd) = self.fd else { unreachable!() };
-        let sqe = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.bytes_total() as _)
-            .offset64(pos as _)
-            .build();
-        // Safety: the buffer is guarded by submit
-        let (res, mut buf) = unsafe { submit(sqe, buf) }.await;
-
+    pub async fn read_at<T: IoBufMut>(&self, buf: T, pos: usize) -> (Result<usize>, T) {
+        let (res, mut buf) = op::read_at(self.fd, buf, pos as _).await;
         match res {
-            Ok(cqe) => {
+            Ok(len) => {
                 // Safety: initilialized by io-uring
-                unsafe { buf.set_init(cqe.result() as _) };
-                (Ok(cqe.result() as _), buf)
+                unsafe { buf.set_init(len) };
+                (Ok(len), buf)
             }
             Err(err) => (Err(err), buf),
         }
@@ -333,10 +309,7 @@ impl File {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn sync_all(&self) -> Result<()> {
-        let Some(fd) = self.fd else { unreachable!() };
-        let sqe = Fsync::new(Fd(fd)).build();
-        // Safety: no resource tracking needed
-        unsafe { submit(sqe, ()).await.0? };
+        op::fsync(self.fd, FsyncFlags::all()).await?;
         Ok(())
     }
 
@@ -371,12 +344,7 @@ impl File {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn sync_data(&self) -> Result<()> {
-        let Some(fd) = self.fd else { unreachable!() };
-        let sqe = Fsync::new(Fd(fd))
-            .flags(types::FsyncFlags::DATASYNC)
-            .build();
-        // Safety: no resource tracking needed
-        unsafe { submit(sqe, ()).await.0? };
+        op::fsync(self.fd, FsyncFlags::DATASYNC).await?;
         Ok(())
     }
 
@@ -394,18 +362,7 @@ impl File {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn metadata(&self) -> Result<Metadata> {
-        let Some(fd) = self.fd else { unreachable!() };
-        static EMPTY_PATH: &[u8] = b"\0";
-        let mut statx = Box::new(MaybeUninit::<libc::statx>::uninit());
-        let sqe = Statx::new(Fd(fd), EMPTY_PATH.as_ptr() as _, statx.as_mut_ptr().cast())
-            .flags(libc::AT_EMPTY_PATH)
-            .mask(libc::STATX_ALL)
-            .build();
-        // Safety: all resources are passed to submit
-        let (cqe, statx) = unsafe { submit(sqe, statx).await };
-        cqe?;
-        // Safety: initialized by io-uring
-        let statx = unsafe { MaybeUninit::assume_init(*statx) };
+        let statx = op::statx(self.fd, None).await?;
         Ok(Metadata { statx })
     }
 }
@@ -446,14 +403,11 @@ impl File {
 pub async fn remove_file(path: impl AsRef<Path>) -> Result<()> {
     _remove_file(path.as_ref()).await
 }
+
+/// Non generic remove file
 #[cfg(feature = "unstable")]
 async fn _remove_file(path: &Path) -> Result<()> {
     let path = cstr(path)?;
-    let sqe = UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr()).build();
-    let (cqe, _) = unsafe { submit(sqe, path).await };
-    let code = cqe?.result();
-    if code < 0 {
-        return Err(Error::from_raw_os_error(-code));
-    }
+    op::unlink_at(path).await?;
     Ok(())
 }

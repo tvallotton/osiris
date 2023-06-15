@@ -1,6 +1,6 @@
 use super::executor::Executor;
 use super::Runtime;
-use crate::shared_driver::SharedDriver;
+use crate::reactor::Reactor;
 use std::rc::Rc;
 
 #[cfg(target_os = "linux")]
@@ -112,7 +112,7 @@ impl Config {
     /// If the async primitives could not be instantiated.
     pub fn build(self) -> std::io::Result<Runtime> {
         let executor = Rc::new(Executor::new(self.clone()));
-        let driver = SharedDriver::new(self.clone())?;
+        let driver = Reactor::new(self.clone())?;
         let rt = Runtime {
             config: self,
             executor,

@@ -1,5 +1,5 @@
+use crate::reactor::Reactor;
 use crate::runtime::waker::main_waker;
-use crate::shared_driver::SharedDriver;
 use crate::task::JoinHandle;
 use executor::Executor;
 use std::cell::Cell;
@@ -56,7 +56,7 @@ pub(crate) fn current_unwrap(fun: &str) -> Runtime {
 pub struct Runtime {
     pub(crate) config: Config,
     pub(crate) executor: Rc<Executor>,
-    pub(crate) driver: SharedDriver,
+    pub(crate) driver: Reactor,
 }
 
 impl Runtime {
