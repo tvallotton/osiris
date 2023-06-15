@@ -1,5 +1,6 @@
+use futures_lite::future::yield_now;
 use osiris::block_on;
-use osiris::fs::{create_dir, metadata, remove_dir};
+use osiris::fs::{create_dir, metadata, remove_dir, File};
 
 #[test]
 fn test_metadata() {
@@ -29,4 +30,13 @@ fn create_and_rm_dir() {
         assert!(metadata(path).await.is_err());
     })
     .unwrap();
+}
+
+#[osiris::test]
+async fn read_write_test() {
+    let file = File::create("tests/fs_test_files/new_file").await.unwrap();
+    file.write_at("contents", 0).await.0.unwrap();
+    
+    file.close().await.unwrap();
+    
 }

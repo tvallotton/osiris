@@ -2,10 +2,18 @@
 use std::{
     io::{Error, Result},
     mem::forget,
+    net::SocketAddr,
 };
 
-use crate::{detach, reactor::op};
-use libc::{socket, SOCK_CLOEXEC};
+use crate::{
+    buf::{IoBuf, IoBufMut},
+    detach,
+    reactor::op::{self},
+};
+
+use libc::SOCK_CLOEXEC;
+
+use super::utils::socket_addr;
 
 #[repr(i32)]
 pub enum Domain {
@@ -24,11 +32,11 @@ pub enum Type {
 }
 
 #[repr(i32)]
-#[derive(Default)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 
 pub enum Protocol {
     #[default]
-    UNSPECIFIED = 0,
+    IP = libc::IPPROTO_IP,
     TCP = libc::IPPROTO_TCP,
     UDP = libc::IPPROTO_UDP,
     MPTCP = libc::IPPROTO_MPTCP,
@@ -37,18 +45,46 @@ pub enum Protocol {
 }
 
 pub struct Socket {
-    fd: i32,
+    pub fd: i32,
 }
 
 impl Socket {
     /// Creates a new socket
-    pub fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
-        let fd = unsafe { socket(domain as i32, ty as i32 | SOCK_CLOEXEC, proto as i32) };
-        if fd == -1 {
-            return Err(Error::last_os_error());
-        }
+    pub async fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
+        let fd = unsafe { libc::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _) };
+        // let fd = op::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _, None).await?;
         Ok(Self { fd })
     }
+
+    pub async fn read<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+        op::read_at(self.fd, buf, 0).await
+    }
+
+    pub async fn write<B: IoBuf>(&self, buf: B) -> (Result<usize>, B) {
+        op::write_at(self.fd, buf, 0).await
+    }
+
+    pub async fn recv<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+        op::recv(self.fd, buf).await
+    }
+
+    pub async fn connect(&self, addr: SocketAddr) -> Result<()> {
+        op::connect(self.fd, addr).await
+    }
+
+    pub async fn send_to<B: IoBuf>(&self, buf: B, addr: SocketAddr) -> (Result<usize>, B) {
+        op::send_to(self.fd, buf, addr).await
+    }
+
+    pub fn bind(&self, addr: &SocketAddr) -> Result<()> {
+        let (addr, len) = socket_addr(addr);
+        let res = unsafe { libc::bind(self.fd, &addr as *const _ as _, len) };
+        if res == -1 {
+            return Err(Error::last_os_error());
+        }
+        Ok(())
+    }
+
     pub async fn close(self) -> Result<()> {
         let fd = self.fd;
         forget(self);
@@ -59,5 +95,15 @@ impl Socket {
 impl Drop for Socket {
     fn drop(&mut self) {
         detach(op::close(self.fd));
+    }
+}
+
+impl From<SocketAddr> for Domain {
+    #[inline]
+    fn from(value: SocketAddr) -> Self {
+        match value {
+            SocketAddr::V4(_) => Domain::V4,
+            SocketAddr::V6(_) => Domain::V6,
+        }
     }
 }

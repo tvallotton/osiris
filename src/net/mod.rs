@@ -1,4 +1,5 @@
 mod dns;
 mod socket;
+mod to_socket_addr;
 mod udp;
-mod utils;
+pub(crate) mod utils;

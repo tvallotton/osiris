@@ -1,123 +1,68 @@
+use super::socket::{Domain, Protocol, Socket, Type};
+use super::to_socket_addr::ToSocketAddrs;
+use super::utils::invalid_input;
 use crate::buf::{IoBuf, IoBufMut};
-use crate::reactor::submit;
-
-use super::utils::{invalid_input, socket_addr};
-
-use io_uring::opcode::{Connect, Read, Recv, SendMsg, Write};
-use io_uring::types::Fd;
-
-use libc::{iovec, msghdr};
-use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use std::future::Future;
 use std::io::Result;
-use std::mem::zeroed;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::os::fd::AsRawFd;
+use std::net::SocketAddr;
 
 pub struct UdpSocket {
-    socket: socket2::Socket,
+    socket: Socket,
 }
 
 impl UdpSocket {
     // TODO make dns resolution async
-    pub async fn bind<A: ToSocketAddrs>(addr: A) -> Result<UdpSocket> {
+    pub async fn bind<A>(addr: A) -> Result<UdpSocket>
+    where
+        for<'a> &'a A: ToSocketAddrs,
+    {
         try_until_success(addr, |addr| async move {
-            let domain = Domain::for_address(addr);
-            UdpSocket::_bind(domain, addr)
+            let domain = Domain::from(addr);
+            UdpSocket::_bind(domain, addr).await
         })
         .await
     }
 
-    pub fn _bind(domain: Domain, addr: SocketAddr) -> Result<UdpSocket> {
-        let ty = Type::DGRAM;
-        let protocol = Protocol::UDP;
-        let socket = Socket::new(domain, ty, Some(protocol))?;
-        socket.bind(&addr.into())?;
+    pub async fn _bind(domain: Domain, addr: SocketAddr) -> Result<UdpSocket> {
+        let socket = Socket::new(domain, Type::DGRAM, Protocol::UDP).await?;
+        socket.bind(&addr)?;
         Ok(UdpSocket { socket })
     }
 
-    pub async fn connect<A: ToSocketAddrs>(&self, addr: A) -> Result<()> {
-        let fd = self.socket.as_raw_fd();
-        try_until_success(addr, |addr| async move {
-            let addr: SockAddr = addr.into();
-            #[cfg(not(feature = "unsafe_completion"))]
-            let addr = Box::new(addr);
-            let sqe = Connect::new(Fd(fd), addr.as_ptr(), addr.len()).build();
-            let (res, _) = unsafe { submit(sqe, addr).await };
-            res?;
-            Ok(())
-        })
-        .await
+    pub async fn connect<A>(&self, addr: A) -> Result<()>
+    where
+        for<'a> &'a A: ToSocketAddrs,
+    {
+        try_until_success(addr, |addr| self.socket.connect(addr)).await
     }
     /// The recv() call is normally used only on a connected socket (see connect(2)). It is equivalent to the call:
-    pub async fn recv<B: IoBufMut>(&self, mut buf: B) -> (Result<usize>, B) {
-        let fd = self.socket.as_raw_fd();
-        let len = buf.bytes_total() as u32;
-        let ptr = buf.stable_mut_ptr();
-        let sqe = Recv::new(Fd(fd), ptr, len).build();
-        let (res, buf) = unsafe { submit(sqe, buf).await };
-        let res = res.map(|r| r.result() as usize);
-        (res, buf)
+    pub async fn recv<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+        dbg!("recv");
+        self.socket.recv(buf).await
     }
 
-    pub async fn read<B: IoBufMut>(&self, mut buf: B) -> (Result<usize>, B) {
-        let fd = self.socket.as_raw_fd();
-        let len = buf.bytes_total() as u32;
-        let ptr = buf.stable_mut_ptr();
-        let sqe = Read::new(Fd(fd), ptr, len).build();
-        let (res, buf) = unsafe { submit(sqe, buf).await };
-        let res = res.map(|r| r.result() as usize);
-        (res, buf)
+    pub async fn read<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+        self.socket.read(buf).await
     }
 
     pub async fn write<B: IoBuf>(&self, buf: B) -> (Result<usize>, B) {
-        let fd = self.socket.as_raw_fd();
-        let len = buf.bytes_init() as u32;
-        let ptr = buf.stable_ptr();
-        let sqe = Write::new(Fd(fd), ptr, len).build();
-        let (res, buf) = unsafe { submit(sqe, buf).await };
-        let res = res.map(|r| r.result() as usize);
-        (res, buf)
+        self.socket.write(buf).await
     }
 
     pub async fn send_to<B: IoBuf>(&self, buf: B, addr: SocketAddr) -> (Result<usize>, B) {
-        let fd = self.socket.as_raw_fd();
-        // we define the iovec from the buffer
-        let msg_iov: iovec = iovec {
-            iov_base: buf.stable_ptr().cast_mut().cast(),
-            iov_len: buf.bytes_init(),
-        };
-
-        let msghdr: msghdr = unsafe { zeroed() };
-
-        let (addr, len) = socket_addr(&addr);
-
-        // we allocate everything once
-        let mut msg = Box::new((msghdr, msg_iov, addr));
-
-        // we set the address to point to the box
-        msg.0.msg_name = &mut msg.2 as *mut _ as *mut _;
-        msg.0.msg_namelen = len;
-
-        // we set the iovec to point to the box
-        msg.0.msg_iov = &mut msg.1;
-        msg.0.msg_iovlen = 1;
-
-        let sqe = SendMsg::new(Fd(fd), &msg.0).build();
-        let (res, (_, buf)) = unsafe { submit(sqe, (msg, buf)).await };
-        let res = res.map(|sqe| sqe.result() as usize);
-        (res, buf)
+        dbg!("send_to");
+        self.socket.send_to(buf, addr).await
     }
 }
 
 async fn try_until_success<A, T, F, Ft>(addr: A, mut f: F) -> Result<T>
 where
-    A: ToSocketAddrs,
+    for<'a> &'a A: ToSocketAddrs,
     F: FnMut(SocketAddr) -> Ft,
     Ft: Future<Output = Result<T>>,
 {
     let mut error = None;
-    for addr in addr.to_socket_addrs()? {
+    for addr in addr.to_socket_addrs().await? {
         let result = f(addr).await;
         let Err(err) = result else {
                 return result;

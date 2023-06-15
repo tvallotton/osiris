@@ -17,6 +17,7 @@ pub async fn dns_search(mut name: &str, resolv: &ResolvConf) -> Result<Vec<IpAdd
     // See if we should just use global scope.
     let num_dots = memchr::Memchr::new(b'.', name.as_bytes()).count();
     let global_scope = num_dots >= resolv.ndots as usize || name.ends_with('.');
+    println!("1");
 
     // Remove the dots from the end of `name`, if needed.
     if name.ends_with('.') {
@@ -27,7 +28,7 @@ pub async fn dns_search(mut name: &str, resolv: &ResolvConf) -> Result<Vec<IpAdd
             return Err(Error::new(ErrorKind::InvalidInput, "name ends with a dot"));
         }
     }
-
+    println!("2");
     if global_scope {
         if let Some(search) = resolv.search.as_ref() {
             // Try the name with the search domains.
@@ -48,7 +49,7 @@ pub async fn dns_search(mut name: &str, resolv: &ResolvConf) -> Result<Vec<IpAdd
             }
         }
     }
-
+    println!("3");
     // Preform a DNS search on just the name.
     dns_lookup(name, resolv).await
 }
@@ -95,11 +96,12 @@ async fn query_name_and_nameserver(
     nameserver: IpAddr,
     resolv: &ResolvConf,
 ) -> Result<Vec<IpAddr>> {
+    println!("4");
     // Try to poll for an IPv4 address first.
     let mut addrs =
         query_question_and_nameserver(Question::new(name, ResourceType::A, 1), nameserver, resolv)
             .await?;
-
+    println!("5");
     // If we didn't get any addresses, try an IPv6 address.
     if addrs.is_empty() {
         addrs = query_question_and_nameserver(
@@ -109,7 +111,7 @@ async fn query_name_and_nameserver(
         )
         .await?;
     }
-
+    println!("6");
     Ok(addrs)
 }
 
@@ -137,17 +139,19 @@ async fn query_question_and_nameserver(
     let needed = message.space_needed();
     let mut buf = vec![0; needed];
 
+    println!("4.1");
     let len = message
         .write(&mut buf)
         .map_err(|err| Error::new(ErrorKind::Other, err))?;
     let buf = Rc::new(buf.slice(0..len));
-
+    println!("4.2");
     // The query may be too large, so we need to use TCP.
     if len <= 512 {
         if let Some(addrs) = question_with_udp(id, buf.clone(), nameserver, resolv).await? {
             return Ok(addrs);
         }
     }
+    println!("4.3");
 
     // We were unable to complete the query over UDP, use TCP instead.
     question_with_tcp(id, buf, nameserver).await
@@ -162,6 +166,7 @@ async fn question_with_udp(
     nameserver: IpAddr,
     resolv: &ResolvConf,
 ) -> Result<Option<Vec<IpAddr>>> {
+    println!("4.2.0");
     const RECORD_BUFSIZE: usize = 16;
 
     /// The result of waiting for a packet on a fixed timeout.
@@ -173,7 +178,7 @@ async fn question_with_udp(
     }
 
     let mut addrs = vec![];
-
+    println!("4.2.1");
     // Write the query to the nameserver address.
     let socket = UdpSocket::bind(("0.0.0.0", 0)).await?;
     let foreign_addr = SocketAddr::new(nameserver, 53);
@@ -182,12 +187,13 @@ async fn question_with_udp(
     let mut buf = vec![0; 512];
 
     for _ in 0..resolv.attempts {
+        println!("4.2.2");
         // Wait for `timeout` seconds for a response.
         socket.send_to(query.clone(), foreign_addr).await.0?;
 
         let duration = Duration::from_secs(resolv.timeout.into());
         let result = timeout(socket.recv(buf), duration).await;
-
+        println!("4.2.3");
         // Get the length of the packet we're reading.
         let len = match result {
             Ok((Ok(len), buf_)) => {
@@ -211,7 +217,7 @@ async fn question_with_udp(
         let mut answers = [ResourceRecord::default(); RECORD_BUFSIZE];
         let mut authority = [ResourceRecord::default(); RECORD_BUFSIZE];
         let mut additional = [ResourceRecord::default(); RECORD_BUFSIZE];
-
+        println!("4.2.4");
         // Parse the packet.
         let message = Message::read(
             &buf[..len],

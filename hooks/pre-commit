@@ -2,4 +2,4 @@
 
 cargo +nightly fmt
 cargo test --doc -F unstable
-cargo clippy -F io_uring
+

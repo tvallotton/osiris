@@ -1,7 +1,7 @@
 // # Attribution
 // credits to the authors at osiris
 use crate::fs::File;
-use crate::reactor::submit;
+use crate::reactor::op;
 use std::io::{self, Error, Result};
 use std::path::Path;
 
@@ -291,23 +291,10 @@ impl OpenOptions {
 
     async fn _open(&self, path: &Path) -> Result<File> {
         use crate::fs::cstr;
-        use io_uring::opcode::OpenAt;
-        use io_uring::types;
         let path = cstr(path)?;
-
         let flags = libc::O_CLOEXEC | self.access_mode()? | self.creation_mode()?;
-        let dirfd = types::Fd(libc::AT_FDCWD);
-
-        let entry = OpenAt::new(dirfd, path.as_ptr())
-            .flags(flags)
-            .mode(self.mode)
-            .build();
-        // Safety: the resource (pathname) is submitted
-        let (entry, _) = unsafe { submit(entry, path) }.await;
-
-        Ok(File {
-            fd: entry?.result(),
-        })
+        let fd = op::open_at(path, flags, self.mode).await?;
+        Ok(File { fd })
     }
 
     pub(crate) fn access_mode(&self) -> Result<libc::c_int> {

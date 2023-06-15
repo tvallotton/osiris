@@ -16,11 +16,11 @@ pub mod fs;
 #[cfg(target_os = "linux")]
 #[cfg(feature = "net")]
 pub mod net;
+mod reactor;
 pub mod runtime;
-pub mod reactor;
 pub mod sync;
 pub mod task;
 #[cfg(target_os = "linux")]
 pub mod time;
 #[cfg(feature = "macros")]
-pub use osiris_macros::main;
+pub use osiris_macros::{main, test};
