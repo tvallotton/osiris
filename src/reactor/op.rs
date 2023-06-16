@@ -82,7 +82,7 @@ pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
 
 /// performs a statx "system call" on a file or path
 pub async fn statx(fd: i32, path: Option<CString>) -> Result<libc::statx> {
-    let pathname = path.as_ref().map(|x| x.as_ptr()).unwrap_or(b"\0".as_ptr());
+    let pathname = path.as_ref().map(|x| x.as_bytes()).unwrap_or(b"\0").as_ptr();
     let statx = std::mem::MaybeUninit::<libc::statx>::uninit();
     let mut statx = Box::new(statx);
     let sqe = Statx::new(Fd(fd), pathname, statx.as_mut_ptr().cast())
