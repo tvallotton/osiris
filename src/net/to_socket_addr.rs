@@ -9,7 +9,9 @@ use crate::net::dns;
 
 use super::utils::invalid_input;
 
-pub trait ToSocketAddrs {
+pub trait Sealed {}
+
+pub trait ToSocketAddrs: Sealed {
     /// Returned iterator over socket addresses which this type may correspond
     /// to.
 
@@ -30,7 +32,16 @@ pub trait ToSocketAddrs {
 /// Uses std's impl of ToSocketAddr
 macro_rules! use_std {
     ($($ty:ty),*) => {$(
+        impl Sealed for &$ty {}
         impl<'a> ToSocketAddrs for &'a $ty {
+            type Iter = <Self as std::net::ToSocketAddrs>::Iter;
+            type Fut = Ready<Result<Self::Iter>>;
+            fn to_socket_addrs(self) -> Self::Fut {
+                ready(std::net::ToSocketAddrs::to_socket_addrs(&self))
+            }
+        }
+        impl Sealed for $ty {}
+        impl ToSocketAddrs for $ty {
             type Iter = <Self as std::net::ToSocketAddrs>::Iter;
             type Fut = Ready<Result<Self::Iter>>;
             fn to_socket_addrs(self) -> Self::Fut {
@@ -49,12 +60,13 @@ use_std! {
     (Ipv6Addr, u16)
 }
 
-impl<'a> ToSocketAddrs for &'a (&str, u16) {
+impl Sealed for (&str, u16) {}
+impl<'a> ToSocketAddrs for (&'a str, u16) {
     type Iter = vec::IntoIter<SocketAddr>;
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
     fn to_socket_addrs(self) -> Self::Fut {
-        Box::pin(async {
-            let (host, port) = *self;
+        Box::pin(async move {
+            let (host, port) = self;
             let res = dns::lookup(host)
                 .await?
                 .map(|ip_addr| SocketAddr::from((ip_addr, port)));
@@ -63,7 +75,8 @@ impl<'a> ToSocketAddrs for &'a (&str, u16) {
     }
 }
 
-impl<'a> ToSocketAddrs for &'a (String, u16) {
+impl Sealed for &(&str, u16) {}
+impl<'a> ToSocketAddrs for &'a (&str, u16) {
     type Iter = vec::IntoIter<SocketAddr>;
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
     fn to_socket_addrs(self) -> Self::Fut {
@@ -72,13 +85,28 @@ impl<'a> ToSocketAddrs for &'a (String, u16) {
     }
 }
 
+impl Sealed for &(String, u16) {}
+impl<'a> ToSocketAddrs for &'a (String, u16) {
+    type Iter = vec::IntoIter<SocketAddr>;
+    type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
+    fn to_socket_addrs(self) -> Self::Fut {
+        (&*self.0, self.1).to_socket_addrs()
+    }
+}
+
 // accepts strings like 'localhost:12345'
+impl Sealed for &str {}
 impl<'a> ToSocketAddrs for &'a str {
     type Iter = vec::IntoIter<SocketAddr>;
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
     fn to_socket_addrs(self) -> Self::Fut {
         Box::pin(async {
-            let (host, port) = self.split_once(':').ok_or_else(invalid_input)?;
+            let (host, port) = self.split_once(':').ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    "invalid socket address, expected `<host>:<port>` syntax.",
+                )
+            })?;
             let port: u16 = port
                 .parse()
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid port value"))?;
@@ -92,6 +120,7 @@ impl<'a> ToSocketAddrs for &'a str {
     }
 }
 
+impl Sealed for &[SocketAddr] {}
 impl<'a> ToSocketAddrs for &'a [SocketAddr] {
     type Iter = std::iter::Cloned<std::slice::Iter<'a, SocketAddr>>;
     type Fut = Ready<Result<Self::Iter>>;
@@ -100,6 +129,7 @@ impl<'a> ToSocketAddrs for &'a [SocketAddr] {
     }
 }
 
+impl Sealed for &String {}
 impl<'a> ToSocketAddrs for &'a String {
     type Iter = vec::IntoIter<SocketAddr>;
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
@@ -108,18 +138,8 @@ impl<'a> ToSocketAddrs for &'a String {
     }
 }
 
-impl<T: ToSocketAddrs + ?Sized> ToSocketAddrs for &T {
-    type Iter = T::Iter;
-    type Fut = T::Fut;
-    fn to_socket_addrs(self) -> Self::Fut {
-        // (*self).to_socket_addrs()
-        todo!()
-    }
-}
-
-pub(crate) async fn try_until_success<A, T, F, Ft>(addr: A, mut f: F) -> Result<T>
+pub(crate) async fn try_until_success<A: ToSocketAddrs, T, F, Ft>(addr: A, mut f: F) -> Result<T>
 where
-    for<'a> &'a A: ToSocketAddrs,
     F: FnMut(SocketAddr) -> Ft,
     Ft: Future<Output = Result<T>>,
 {

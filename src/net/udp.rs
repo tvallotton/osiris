@@ -9,10 +9,8 @@ pub struct UdpSocket {
 }
 
 impl UdpSocket {
-    pub async fn bind<A>(addr: A) -> Result<UdpSocket>
-    where
-        for<'a> &'a A: ToSocketAddrs,
-    {
+    pub async fn bind<A: ToSocketAddrs>(addr: A) -> Result<UdpSocket>
+where {
         try_until_success(addr, |addr| async move {
             let domain = addr.into();
             let socket = Socket::new(domain, Type::DGRAM, Protocol::UDP)?;
@@ -24,13 +22,12 @@ impl UdpSocket {
 
     pub async fn connect<A>(&self, addr: A) -> Result<()>
     where
-        for<'a> &'a A: ToSocketAddrs,
+        A: ToSocketAddrs,
     {
         try_until_success(addr, |addr| self.socket.connect(addr)).await
     }
     /// The recv() call is normally used only on a connected socket (see connect(2)). It is equivalent to the call:
     pub async fn recv<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
-        dbg!("recv");
         self.socket.recv(buf).await
     }
 
@@ -43,7 +40,6 @@ impl UdpSocket {
     }
 
     pub async fn send_to<B: IoBuf>(&self, buf: B, addr: SocketAddr) -> (Result<usize>, B) {
-        dbg!("send_to");
         self.socket.send_to(buf, addr).await
     }
 }

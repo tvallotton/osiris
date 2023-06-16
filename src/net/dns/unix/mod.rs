@@ -6,7 +6,7 @@ mod lookup_serv;
 mod resolv;
 mod search;
 pub async fn lookup(name: &str) -> Result<Vec<IpAddr>> {
-    // // We may be able to use the /etc/hosts resolver.
+    // We may be able to use the /etc/hosts resolver.
     let addr = from_hosts(name).await?;
     if let Some(addr) = addr {
         return Ok(vec![addr]);

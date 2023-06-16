@@ -10,7 +10,7 @@ pub async fn lookup(name: &str) -> Result<impl Iterator<Item = IpAddr>> {
         return Ok(Either::Left(Some(ip).into_iter()));
     }
 
-    Ok(Either::Right(None.into_iter()))
+    Ok(Either::Right(unix::lookup(name).await?.into_iter()))
 }
 
 enum Either<L, R> {
