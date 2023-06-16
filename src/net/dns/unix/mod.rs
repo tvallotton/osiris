@@ -49,11 +49,21 @@ fn resolve_conf_load_test() {
     crate::block_on(async { dbg!(ResolvConf::load()) }).unwrap();
 }
 
-#[test]
+#[cfg(test)]
+#[crate::test]
 fn lookup_test() {
     crate::block_on(async {
         let ips = dbg!(lookup("www.wikipedia.com").await.unwrap());
-        assert!(ips.contains(&"208.80.154.232".parse().unwrap()))
+        assert!(dbg!(ips).contains(&"208.80.154.232".parse().unwrap()))
+    })
+    .unwrap();
+}
+
+#[test]
+fn lookup_non_existent_test() {
+    crate::block_on(async {
+        let ips = dbg!(lookup("www.non-existent-host.com").await.unwrap());
+        assert!(dbg!(ips).is_empty());
     })
     .unwrap();
 }

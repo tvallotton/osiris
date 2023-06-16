@@ -52,7 +52,8 @@ impl Socket {
     /// Creates a new socket
     pub async fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
         let fd = unsafe { libc::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _) };
-        // let fd = op::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _, None).await?;
+        // TODO: Figure out why this fails
+        // let fd = op::socket(domain as _, ty as i32, proto as _, None).await?;
         Ok(Self { fd })
     }
 

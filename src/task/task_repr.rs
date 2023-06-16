@@ -132,9 +132,10 @@ where
             // double panicking
             let msg = "A task attempted to abort itself. This is not supported, move the JoinHandle to another task or detach it if you don't want it to panic."; 
             if panicking() {
-                eprintln!("{msg}"); 
+                return eprintln!("{msg}"); 
+            } else{
+                unimplemented!("{msg}"); 
             }
-            unimplemented!("{msg}"); 
         };
 
         if !matches!(&*task, Payload::Panic { .. }) {

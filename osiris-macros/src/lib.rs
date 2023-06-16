@@ -35,17 +35,7 @@ struct AsyncMain {
 impl Parse for AsyncMain {
     fn parse(input: ParseStream) -> Result<Self> {
         let item: ItemFn = input.parse()?;
-
         let is_async = item.sig.asyncness.is_some();
-        let is_main = item.sig.ident == "main";
-
-        if !is_async && !is_main {
-            return Err({
-                Error::new(item.sig.span(),
-                "expected `async fn main`. help: rename this function to `main` and make it `async`.")
-            });
-        }
-
         if !is_async {
             return Err({
                 Error::new(
@@ -54,15 +44,6 @@ impl Parse for AsyncMain {
                 )
             });
         }
-        if !is_main {
-            return Err({
-                Error::new(
-                    item.sig.span(),
-                    "expected `async fn main()`. help: rename this function to `main`.",
-                )
-            });
-        }
-
         Ok(AsyncMain { item })
     }
 }

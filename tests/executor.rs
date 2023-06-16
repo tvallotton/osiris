@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::panic::catch_unwind;
 use std::rc::Rc;
+use std::time::Duration;
 
 use osiris::detach;
 use osiris::runtime::block_on;
@@ -157,6 +158,26 @@ fn detach_handle_panic() {
         });
         handle.detach();
         stall().await;
+    })
+    .unwrap();
+}
+
+// this function test that a function cannot abort itself
+// currently the behavior is that it won't propagate to any other task
+// so the program will continue as normal.
+#[test]
+fn self_abort() {
+    block_on(async {
+        let handle = Rc::new(Cell::new(None));
+        let join_handle = spawn({
+            let handle = handle.clone();
+            async move {
+                // panics!
+                drop(handle.take());
+            }
+        });
+        handle.set(Some(join_handle));
+        stall().await
     })
     .unwrap();
 }

@@ -10,9 +10,3 @@ thread_local! {
     /// This is the task thread local. It determines which task is currently being executed.
     pub(crate) static TASK_ID: Cell<Option<u64>> = Cell::new(None);
 }
-
-/// Returns a handle to the currently running [`Runtime`].
-#[track_caller]
-pub fn current() -> Option<Runtime> {
-    RUNTIME.with(|cell| cell.borrow().clone())
-}

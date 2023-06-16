@@ -61,10 +61,10 @@ pub async fn socket(
     domain: i32,
     ty: i32,
     proto: i32,
-    file_index: Option<io_uring::types::DestinationSlot>,
+    _file_index: Option<io_uring::types::DestinationSlot>,
 ) -> Result<i32> {
     let sqe = Socket::new(domain, ty, proto)
-        .file_index(file_index)
+        // .file_index(file_index)
         .build();
     let fut = unsafe { submit(sqe, ()) };
     let res = fut.await.0?.result();
