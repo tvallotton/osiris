@@ -116,3 +116,20 @@ impl<T: ToSocketAddrs + ?Sized> ToSocketAddrs for &T {
         todo!()
     }
 }
+
+pub(crate) async fn try_until_success<A, T, F, Ft>(addr: A, mut f: F) -> Result<T>
+where
+    for<'a> &'a A: ToSocketAddrs,
+    F: FnMut(SocketAddr) -> Ft,
+    Ft: Future<Output = Result<T>>,
+{
+    let mut error = None;
+    for addr in addr.to_socket_addrs().await? {
+        let result = f(addr).await;
+        let Err(err) = result else {
+                return result;
+            };
+        error = Some(err);
+    }
+    Err(error.unwrap_or_else(invalid_input))
+}

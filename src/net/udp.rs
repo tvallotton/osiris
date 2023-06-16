@@ -1,8 +1,6 @@
 use super::socket::{Domain, Protocol, Socket, Type};
-use super::to_socket_addr::ToSocketAddrs;
-use super::utils::invalid_input;
+use super::to_socket_addr::{try_until_success, ToSocketAddrs};
 use crate::buf::{IoBuf, IoBufMut};
-use std::future::Future;
 use std::io::Result;
 use std::net::SocketAddr;
 
@@ -53,23 +51,6 @@ impl UdpSocket {
         dbg!("send_to");
         self.socket.send_to(buf, addr).await
     }
-}
-
-async fn try_until_success<A, T, F, Ft>(addr: A, mut f: F) -> Result<T>
-where
-    for<'a> &'a A: ToSocketAddrs,
-    F: FnMut(SocketAddr) -> Ft,
-    Ft: Future<Output = Result<T>>,
-{
-    let mut error = None;
-    for addr in addr.to_socket_addrs().await? {
-        let result = f(addr).await;
-        let Err(err) = result else {
-                return result;
-            };
-        error = Some(err);
-    }
-    Err(error.unwrap_or_else(invalid_input))
 }
 
 #[test]

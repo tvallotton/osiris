@@ -2,7 +2,7 @@
 use std::{
     io::{Error, Result},
     mem::forget,
-    net::SocketAddr,
+    net::{Shutdown, SocketAddr},
 };
 
 use crate::{
@@ -75,6 +75,10 @@ impl Socket {
 
     pub async fn send_to<B: IoBuf>(&self, buf: B, addr: SocketAddr) -> (Result<usize>, B) {
         op::send_to(self.fd, buf, addr).await
+    }
+
+    pub async fn shutdown(&self, how: Shutdown) -> Result<()> {
+        op::shutdown(self.fd, how).await
     }
 
     pub fn bind(&self, addr: &SocketAddr) -> Result<()> {

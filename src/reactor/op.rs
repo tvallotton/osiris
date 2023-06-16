@@ -1,7 +1,7 @@
-use std::{ffi::CString, io::Result, net::SocketAddr, mem::zeroed};
+use std::{ffi::CString, io::Result, net::{SocketAddr, Shutdown}, mem::zeroed};
 
 use io_uring::{
-    opcode::{Close, Fsync, OpenAt, Read, Recv, Socket, Statx, UnlinkAt, Write, Connect, SendMsg},
+    opcode::{Close, Fsync, OpenAt, Read, Recv, Socket, Statx, UnlinkAt, Write, Connect, SendMsg, self},
     types::{Fd, FsyncFlags},
 };
 use libc::{AT_FDCWD, iovec, msghdr};
@@ -145,4 +145,17 @@ pub async fn open_at(path: CString, flags: i32, mode: u32) -> Result<i32> {
     // Safety: the resource (pathname) is submitted
     let (cqe, _) = unsafe { submit(entry, path) }.await;
     Ok(cqe?.result())
+}
+
+
+pub async fn shutdown(fd: i32, how: Shutdown) -> Result<()> {
+    let how = match how {
+        Shutdown::Read => libc::SHUT_RD, 
+        Shutdown::Write=> libc::SHUT_WR, 
+        Shutdown::Both=> libc::SHUT_RDWR,  
+    };
+    let sqe = opcode::Shutdown::new(Fd(fd), how).build(); 
+    let (cqe, _) = unsafe {submit(sqe, ()).await}; 
+    cqe?;
+    Ok(())
 }

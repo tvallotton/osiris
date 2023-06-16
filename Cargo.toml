@@ -22,8 +22,6 @@ debug = true
 [dependencies]
 dns-protocol = "0.1.1"
 fastrand = "1.9.0"
-futures-core = "0.3.28"
-futures-lite = { version = "1.13.0", default-features = false }
 libc = "0.2.138"
 memchr = "2.5.0"
 osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }
