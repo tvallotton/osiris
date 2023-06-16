@@ -50,7 +50,7 @@ pub struct Socket {
 
 impl Socket {
     /// Creates a new socket
-    pub async fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
+    pub fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
         let fd = unsafe { libc::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _) };
         // TODO: Figure out why this fails
         // let fd = op::socket(domain as _, ty as i32, proto as _, None).await?;
@@ -88,6 +88,10 @@ impl Socket {
             return Err(Error::last_os_error());
         }
         Ok(())
+    }
+    pub async fn accept(&self) -> Result<(Socket, SocketAddr)> {
+        let (fd, addr) = op::accept(self.fd).await?;
+        Ok((Socket { fd }, addr))
     }
 
     pub async fn close(self) -> Result<()> {

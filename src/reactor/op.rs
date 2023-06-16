@@ -1,12 +1,12 @@
-use std::{ffi::CString, io::Result, net::{SocketAddr, Shutdown}, mem::zeroed};
+use std::{ffi::CString, io::{Result, Error}, net::{SocketAddr, Shutdown}, mem::zeroed};
 
 use io_uring::{
-    opcode::{Close, Fsync, OpenAt, Read, Recv, Socket, Statx, UnlinkAt, Write, Connect, SendMsg, self},
+    opcode::{Close, Fsync, OpenAt, Read, Recv, Socket, Statx, UnlinkAt, Write, Connect, SendMsg,  Accept, self},
     types::{Fd, FsyncFlags},
 };
 use libc::{AT_FDCWD, iovec, msghdr};
 
-use crate::{buf::{IoBuf, IoBufMut}, net::utils::socket_addr};
+use crate::{buf::{IoBuf, IoBufMut}, net::utils::{socket_addr, to_std_socket_addr}};
 
 use super::submit;
 
@@ -145,6 +145,19 @@ pub async fn open_at(path: CString, flags: i32, mode: u32) -> Result<i32> {
     // Safety: the resource (pathname) is submitted
     let (cqe, _) = unsafe { submit(entry, path) }.await;
     Ok(cqe?.result())
+}
+
+pub async fn accept(fd: i32) -> Result<(i32, SocketAddr)>{
+    let addr: libc::sockaddr_storage = unsafe { zeroed() }; 
+    let mut addr = Box::new(addr); 
+    let mut len  = 0; 
+    let sqe = Accept::new(Fd(fd), &mut *addr as *mut _ as _, &mut len).build(); 
+    let (cqe, addr) = unsafe { submit(sqe, addr).await }; 
+    let addr = to_std_socket_addr(&addr).ok_or_else(||Error::new(
+        std::io::ErrorKind::Other, 
+        "unsupported IP version"
+    ))?; 
+    Ok((cqe?.result(), addr))
 }
 
 

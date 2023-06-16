@@ -1,4 +1,4 @@
-use super::socket::{Domain, Protocol, Socket, Type};
+use super::socket::{Protocol, Socket, Type};
 use super::to_socket_addr::{try_until_success, ToSocketAddrs};
 use crate::buf::{IoBuf, IoBufMut};
 use std::io::Result;
@@ -9,22 +9,17 @@ pub struct UdpSocket {
 }
 
 impl UdpSocket {
-    // TODO make dns resolution async
     pub async fn bind<A>(addr: A) -> Result<UdpSocket>
     where
         for<'a> &'a A: ToSocketAddrs,
     {
         try_until_success(addr, |addr| async move {
-            let domain = Domain::from(addr);
-            UdpSocket::_bind(domain, addr).await
+            let domain = addr.into();
+            let socket = Socket::new(domain, Type::DGRAM, Protocol::UDP)?;
+            socket.bind(&addr)?;
+            Ok(UdpSocket { socket })
         })
         .await
-    }
-
-    pub async fn _bind(domain: Domain, addr: SocketAddr) -> Result<UdpSocket> {
-        let socket = Socket::new(domain, Type::DGRAM, Protocol::UDP).await?;
-        socket.bind(&addr)?;
-        Ok(UdpSocket { socket })
     }
 
     pub async fn connect<A>(&self, addr: A) -> Result<()>

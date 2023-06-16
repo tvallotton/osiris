@@ -14,7 +14,7 @@ use super::{
 };
 
 pub struct TcpStream {
-    socket: Socket,
+    pub(crate) socket: Socket,
 }
 
 impl TcpStream {
@@ -23,7 +23,7 @@ impl TcpStream {
             let domain = Domain::from(addr);
             let ty = Type::STREAM;
             let proto = Protocol::TCP;
-            Socket::new(domain, ty, proto).await
+            Socket::new(domain, ty, proto)
         })
         .await?;
         Ok(TcpStream { socket })

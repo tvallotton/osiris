@@ -1,8 +1,10 @@
 use crate::fs::File;
+use libc::{AF_INET, AF_INET6};
 use memchr::memchr;
 use std::io::{Error, Result};
 use std::mem::take;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::ptr::addr_of;
 
 pub(crate) fn socket(addr: SocketAddr, ty: i32, protocol: i32) -> Result<i32> {
     use libc::*;
@@ -100,6 +102,34 @@ pub(crate) fn socket_addr(addr: &SocketAddr) -> (SocketAddrCRepr, libc::socklen_
             let socklen = std::mem::size_of::<libc::sockaddr_in6>() as libc::socklen_t;
             (sockaddr, socklen)
         }
+    }
+}
+
+/// Returns this address as a `SocketAddr` if it is in the `AF_INET` (IPv4)
+/// or `AF_INET6` (IPv6) family, otherwise returns `None`.
+pub fn to_std_socket_addr(storage: &libc::sockaddr_storage) -> Option<SocketAddr> {
+    if storage.ss_family == AF_INET as _ {
+        // SAFETY: if the `ss_family` field is `AF_INET` then storage must
+        // be a `sockaddr_in`.
+        let addr: &libc::sockaddr_in = unsafe { &*(addr_of!(storage).cast()) };
+        let port = u16::from_be(addr.sin_port);
+        let ip = Ipv4Addr::from(addr.sin_addr.s_addr.to_ne_bytes());
+        Some(SocketAddr::V4(SocketAddrV4::new(ip, port)))
+    } else if storage.ss_family == AF_INET6 as _ {
+        // SAFETY: if the `ss_family` field is `AF_INET6` then storage must
+        // be a `sockaddr_in6`.
+        let addr: &libc::sockaddr_in6 = unsafe { &*(addr_of!(storage).cast()) };
+        let ip = Ipv6Addr::from(addr.sin6_addr.s6_addr);
+        let port = u16::from_be(addr.sin6_port);
+        Some(SocketAddr::V6(SocketAddrV6::new(
+            ip,
+            port,
+            addr.sin6_flowinfo,
+            #[cfg(unix)]
+            addr.sin6_scope_id,
+        )))
+    } else {
+        None
     }
 }
 

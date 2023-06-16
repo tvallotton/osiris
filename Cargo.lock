@@ -195,6 +195,7 @@ dependencies = [
  "quote",
  "syn 1.0.109",
  "virtue",
+ "watt",
 ]
 
 [[package]]
@@ -269,3 +270,9 @@ name = "virtue"
 version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "147139c5605d9869d47d3cd1a42dcbb624a29dd7de93aa84a01d448903bd828c"
+
+[[package]]
+name = "watt"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "801f09bc124aeda9c3fd04d125148986de639dd549313964927af065970748d2"

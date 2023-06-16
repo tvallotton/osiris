@@ -7,12 +7,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default-features = ["io_uring"]
-epoll=[]
-io_uring = ["io-uring"]
 unstable = ["io-uring/unstable"]
-unsafe_completion = []
-net = []
 macros = ["osiris-macros"]
 
 
@@ -28,13 +23,13 @@ osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }
 pin-project-lite = "0.2.9"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-io-uring = { version = "0.5.6", optional = true }
+io-uring = { version = "0.5.6" }
 
 
 [dev-dependencies]
 dotenv = "0.15.0"
 futures = "0.3.28"
-osiris = { path = ".", features = ["unstable", "macros", "net", "epoll", "io_uring"] }
+osiris = { path = ".", features = ["unstable", "macros"] }
 
 [build-dependencies]
 cfg_aliases = "0.1.0"
