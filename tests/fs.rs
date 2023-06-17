@@ -1,8 +1,4 @@
-use futures::FutureExt;
-use osiris::block_on;
-use osiris::fs::{
-    create_dir, metadata, read_to_string, remove_dir, remove_file, File, OpenOptions,
-};
+use osiris::fs::{create_dir, metadata, remove_dir, remove_file, File, OpenOptions};
 
 #[osiris::test]
 fn test_metadata() {

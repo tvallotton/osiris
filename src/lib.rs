@@ -8,11 +8,18 @@
 //!
 //! # Thread per core
 //! Osiris follows the thread per core architecture, avoiding thread synchronization whenever possible.
-//! This means, that most types are `!Send` and `!Sync`.
+//! This means, that most types are `!Send` and `!Sync`. By default, when using the [`main`] macro the
+//! application is single threaded. It can be made multithreaded by settning the workers parameter:
+//! ```rust
+//! #[osiris::main(scale = num_cpus::get())]
+//! async fn main() {
+//!     // ...
+//! }
+//! ```
 //!
 //!
 //! # Working with tasks
-//! In Osiris, tasks can be created using the spawn function, which returns a JoinHandle.
+//! In Osiris, tasks can be created using the [`spawn`] function, which returns a [`JoinHandle`](task::JoinHandle).
 //! The JoinHandle can be used to either join or cancel the task.
 //! ## Joining
 //! A task can be joined with its parent by awaiting it. The join handle will
@@ -67,6 +74,22 @@
 //!     // task continues execution after being dropped.
 //! }
 //! ```
+//! # Async I/O
+//! Osiris is a completion based async runtime, which means it has stricter requirements
+//! for what kinds of buffers can be used for I/O. Specifically, it cannot work with non-'static
+//! references, only owned buffers or 'static references.
+//!
+//! ## File system
+//! Unlike nonblocking based runtimes, osiris offers true asynchronous file I/O
+//! ```
+//! use osiris::fs::read_to_string;
+//! #[osiris::main]
+//! async fn main() -> std::io::Result<()> {
+//!     let data = read_to_string("./Cargo.toml").await?;
+//!     assert!(data.contains("osiris"));
+//!     Ok(())
+//! }
+//! ```
 #![deny(warnings)]
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
@@ -77,6 +100,7 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::borrow_as_ptr)]
+
 pub use runtime::block_on;
 pub use task::{detach, spawn};
 pub mod buf;
@@ -90,9 +114,8 @@ pub mod sync;
 pub mod task;
 #[cfg(target_os = "linux")]
 pub mod time;
+pub mod future;
 #[cfg(feature = "macros")]
 pub use osiris_macros::{main, test};
-
-fn foo() {
-    spawn(async {}).detach();
-}
+#[doc(hidden)]
+pub mod __priv;

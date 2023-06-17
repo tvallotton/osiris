@@ -49,19 +49,21 @@ fn resolve_conf_load_test() {
     crate::block_on(async { dbg!(ResolvConf::load()) }).unwrap();
 }
 
-#[cfg(test)]
-#[crate::test]
+#[test]
 fn lookup_test() {
     crate::block_on(async {
-        let ips = dbg!(lookup("www.wikipedia.com").await.unwrap());
+        let ips = dbg!(lookup("www.wikipedia.org").await.unwrap());
         assert!(!ips.is_empty(), "{ips:?}");
     })
     .unwrap();
 }
 
 #[cfg(test)]
-#[crate::test]
-async fn lookup_non_existent_test() {
-    let ips = dbg!(lookup("www.non-existent-host.com").await.unwrap());
-    assert!(dbg!(ips).is_empty());
+#[test]
+fn lookup_non_existent_test() {
+    crate::block_on(async {
+        let ips = dbg!(lookup("www.non-existent-host.com").await.unwrap());
+        assert!(dbg!(ips).is_empty());
+    })
+    .unwrap();
 }

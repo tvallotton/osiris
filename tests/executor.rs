@@ -1,11 +1,9 @@
-use std::cell::Cell;
-use std::panic::catch_unwind;
-use std::rc::Rc;
-use std::time::Duration;
-
 use osiris::detach;
 use osiris::runtime::block_on;
 use osiris::task::{spawn, yield_now};
+use std::cell::Cell;
+use std::panic::catch_unwind;
+use std::rc::Rc;
 
 use osiris::task::{self};
 
