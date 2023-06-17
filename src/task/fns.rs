@@ -21,7 +21,7 @@ use std::future::Future;
 /// Panics if called from **outside** of an osiris runtime.
 ///
 #[track_caller]
-#[must_use = "osiris tasks are cancelled on drop, you may want to `.detach()` it."]
+#[must_use = "This task is immediatly cancelled after spawn. osiris tasks are cancelled on drop, you may want to `.detach()` it."]
 pub fn spawn<F>(future: F) -> JoinHandle<<F as Future>::Output>
 where
     F: Future + 'static,
@@ -46,6 +46,7 @@ where
 ///
 /// # Panics
 /// Panics if called from **outside** of an osiris runtime.
+#[track_caller]
 pub fn detach<F>(future: F) -> JoinHandle<<F as Future>::Output>
 where
     F: Future + 'static,

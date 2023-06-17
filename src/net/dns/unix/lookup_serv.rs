@@ -30,7 +30,7 @@ async fn lookup_serv(
 
     Ok(len)
 }
-// TODO: add aliases
+
 fn parse_line(name: Option<&[u8]>, protocol: Option<Protocol>, line: &[u8]) -> Option<Service> {
     let line = remove_comment(line);
     let mut columns = line.split(is_whitespace).filter(|name| !name.is_empty());

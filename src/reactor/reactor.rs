@@ -60,12 +60,14 @@ impl Driver {
             let cqueue = self.io_uring.completion();
             for cevent in cqueue {
                 let Entry::Occupied(mut entry) = self.wakers.entry(cevent.user_data()) else {
-                    // TODO?
-                    unreachable!()
+                    unreachable!(
+                        "This is a bug in osiris: a waker has been lost, a CQE was recieved but no associated waker was found."
+                    ); 
                 };
                 let Continue(waker) = entry.insert(Break(cevent)) else {
-                    // TODO?
-                    unreachable!()
+                    unreachable!(
+                        "This is a bug in osiris: a non-multishot SQE has recieved more than one associated CQE."
+                    ); 
                 };
                 waker.wake();
             }
@@ -77,6 +79,7 @@ impl Driver {
         self.event_id += 1;
         self.event_id
     }
+
     #[cfg(target_os = "linux")]
     #[inline]
     pub fn poll(&mut self, id: u64, waker: &Waker) -> Poll<cqueue::Entry> {

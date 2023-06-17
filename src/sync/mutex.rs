@@ -13,7 +13,7 @@ use std::task::{Poll, Waker};
 /// only be accessed through the RAII guards returned from `lock` and `try_lock`,
 /// which guarantees that the data is only ever accessed when the mutex is locked.
 ///
-///  Unlike the `std::sync::Mutex` or the `tokio::sync::Mutex`, this `Mutex` does
+/// Unlike the `std::sync::Mutex` or the `tokio::sync::Mutex`, this `Mutex` does
 /// not implement the `Send` and `Sync` traits. That is because this mutex's purpose
 /// is to synchronize tasks, while those other mutexes are used to synchronize threads.
 /// In general synchronizing tasks is cheaper than synchronizing threads. So generally,

@@ -155,7 +155,7 @@ pub async fn lines(path: &str, capacity: usize) -> Result<LineReader> {
         char: 0,
     })
 }
-
+// TODO: refactor this to use file position?
 pub struct LineReader {
     file: File,
     buf: Vec<u8>,
@@ -182,7 +182,6 @@ impl LineReader {
     }
 
     async fn fetch(&mut self) -> Result<()> {
-        println!("fetch");
         self.seek += self.char;
         self.char = 0;
         let (res, buf) = self.file.read_at(take(&mut self.buf), self.seek as _).await;
