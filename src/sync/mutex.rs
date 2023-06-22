@@ -38,7 +38,7 @@ pub struct Guard<'a, T> {
     mutex: &'a Mutex<T>,
 }
 
-pub struct Error(());
+pub struct Error;
 
 impl<'a, T: Debug> Debug for Guard<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -203,7 +203,7 @@ impl<T> Mutex<T> {
     /// ```
     pub fn try_lock(&self) -> Result<Guard<'_, T>, Error> {
         let Ok(value) = self.value.try_borrow_mut() else {
-            return Err(Error(()));
+            return Err(Error);
         };
         Ok(Guard { value, mutex: self })
     }

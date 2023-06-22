@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use super::sleep;
 
-#[derive(Debug)]
-pub struct Error(());
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Error;
 
 impl std::error::Error for Error {}
 impl Display for Error {
@@ -48,7 +48,7 @@ pub async fn timeout<F: Future>(dur: Duration, mut f: F) -> Result<F::Output, Er
         let sleep = unsafe { Pin::new(&mut sleep) };
 
         if sleep.poll(cx).is_ready() {
-            return Ready(Err(Error(())));
+            return Ready(Err(Error));
         }
 
         if let Ready(val) = f.poll(cx) {
