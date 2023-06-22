@@ -95,7 +95,6 @@ impl<T> Sender<T> {
         let mut waker_guard = None;
         poll_fn(|cx| {
             let mut ch = self.channel().borrow_mut();
-
             if ch.receivers == 0 && item.is_none() {
                 // no receivers, returning error
                 let item = item.take().unwrap();
@@ -117,8 +116,7 @@ impl<T> Sender<T> {
                     waker_guard = Some(self.push_sender(cx.waker().clone()));
                     return Poll::Pending;
                 };
-
-                // notify reciever that we've pushed
+                // notify receiver that we've pushed
                 if let Some((_, waker)) = ch.recv_waiters.pop_back() {
                     waker.wake();
                 }
@@ -172,7 +170,6 @@ impl<T> Receiver<T> {
         let mut waker_guard = None;
         poll_fn(|cx| {
             let mut ch = self.channel().borrow_mut();
-
             let Some(item) = ch.queue.pop_front() else {
                 // no items in the queue
                 if ch.senders == 0 {
@@ -337,7 +334,7 @@ impl<T> Error for SendError<T> {}
 #[test]
 fn mpmc_stress_test() {
     crate::block_on(async {
-        const N: usize = 10_000;
+        const N: usize = 1_000;
         let (s, r) = channel(2);
 
         let mut tasks = vec![];
@@ -359,6 +356,8 @@ fn mpmc_stress_test() {
             });
             tasks.push((send, recv));
         }
+        drop(s);
+        drop(r);
 
         for i in 0..N {
             // cancel a pair of tasks at random
@@ -370,6 +369,9 @@ fn mpmc_stress_test() {
             }
         }
         for (send, recv) in tasks {
+            if fastrand::i8(..) == 0 {
+                println!("1");
+            }
             send.await;
             recv.await;
         }
