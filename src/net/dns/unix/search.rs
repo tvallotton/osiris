@@ -186,7 +186,7 @@ async fn question_with_udp(
         socket.send_to(query.clone(), foreign_addr).await.0?;
 
         let duration = Duration::from_secs(resolv.timeout.into());
-        let result = timeout(socket.recv(buf), duration).await;
+        let result = timeout(duration, socket.recv(buf)).await;
 
         // Get the length of the packet we're reading.
         let len = match result {

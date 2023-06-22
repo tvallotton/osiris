@@ -259,3 +259,54 @@ fn mutex_stress_test() {
     .unwrap();
     assert!(mutex.try_lock().is_ok());
 }
+
+#[test]
+fn mutex_stress_test2() {
+    use crate::block_on;
+    use crate::task::yield_now;
+    use std::rc::Rc;
+
+    block_on(async {
+        const N: usize = 2000;
+        let mutex = Rc::new(Mutex::new(0i32));
+
+        let mut tasks = vec![];
+        for _ in 0..N {
+            let incr = crate::spawn({
+                let mutex = mutex.clone();
+                async move {
+                    while fastrand::f32() < 0.5 {
+                        yield_now().await;
+                    }
+                    *mutex.lock().await += 1;
+                }
+            });
+
+            let dec = crate::spawn({
+                let mutex = mutex.clone();
+                async move {
+                    while fastrand::f32() < 0.5 {
+                        yield_now().await;
+                    }
+                    *mutex.lock().await -= 1;
+                }
+            });
+            tasks.push((incr, dec));
+        }
+
+        for i in 0..N {
+            // cancel a pair of tasks at random
+            if fastrand::f32() < 0.1 && i < tasks.len() {
+                tasks.remove(i);
+            } else if i >= tasks.len() {
+                break;
+            }
+            crate::task::yield_now().await;
+        }
+        for (send, recv) in tasks {
+            send.await;
+            recv.await;
+        }
+    })
+    .unwrap();
+}

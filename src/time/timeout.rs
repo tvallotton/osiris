@@ -1,10 +1,20 @@
+use std::fmt::Display;
 use std::future::{poll_fn, Future};
 use std::pin::Pin;
 use std::task::Poll::*;
 use std::time::Duration;
 
 use super::sleep;
+
+#[derive(Debug)]
 pub struct Error(());
+
+impl std::error::Error for Error {}
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "operation timed out")
+    }
+}
 
 /// Requires a `Future` to complete before the specified duration has elapsed.
 ///
@@ -30,7 +40,7 @@ pub struct Error(());
 /// # Panics
 /// This function panics if polled outside a runtime context.
 ///
-pub async fn timeout<F: Future>(mut f: F, dur: Duration) -> Result<F::Output, Error> {
+pub async fn timeout<F: Future>(dur: Duration, mut f: F) -> Result<F::Output, Error> {
     let mut sleep = sleep(dur);
     poll_fn(move |cx| {
         // Safety: we project the Pin
@@ -54,11 +64,11 @@ fn timeout_() {
     crate::block_on(async {
         let future = sleep(Duration::from_millis(50));
 
-        let out = timeout(future, Duration::from_millis(100)).await;
+        let out = timeout(Duration::from_millis(100), future).await;
         assert!(out.is_ok());
         let future = sleep(Duration::from_millis(50));
 
-        let out = timeout(future, Duration::from_millis(10)).await;
+        let out = timeout(Duration::from_millis(10), future).await;
         assert!(out.is_err());
     })
     .unwrap();

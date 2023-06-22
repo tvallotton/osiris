@@ -5,4 +5,3 @@ vscode
 *.txt
 *.DS_Store
 musl
-tokio-uring

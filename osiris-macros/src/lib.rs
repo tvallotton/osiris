@@ -1,13 +1,10 @@
-use proc_macro::TokenStream;
-use proc_macro2::Ident;
-use quote::quote;
 use std::mem::replace;
 
+use proc_macro::TokenStream;
+use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
-use syn::{
-    parenthesized, parse_macro_input, parse_quote, Block, Error, Expr, ItemFn, Result, Token,
-};
+use syn::{parse_macro_input, parse_quote, Block, Error, ItemFn, Result};
 
 #[proc_macro_attribute]
 pub fn main(_: TokenStream, input: TokenStream) -> TokenStream {
@@ -35,69 +32,20 @@ struct AsyncMain {
     item: ItemFn,
 }
 
-struct Args {
-    scale: Expr,
-    restart: Expr,
-}
-
-impl Parse for Args {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let mut args = Args {
-            scale: parse_quote!(1),
-            restart: parse_quote!(false),
-        };
-
-        if input.is_empty() {
-            return Ok(args);
-        }
-        let content;
-        parenthesized!(content in input);
-
-        let mut scale = false;
-        let mut restart = false;
-        while !content.is_empty() {
-            let ident: Ident = content.parse()?;
-            let _: Token![=] = content.parse()?;
-            let expr: Expr = content.parse()?;
-            if ident == "scale" {
-                args.scale = expr;
-                scale = true;
-            } else if ident == "restart" {
-                args.restart = expr;
-                restart = true;
-            } else if scale {
-                return Err(Error::new(
-                    ident.span(),
-                    "argument `scale` is defined mupltiple times",
-                ));
-            } else if restart {
-                return Err(Error::new(
-                    ident.span(),
-                    "argument `restart` defined multiple times",
-                ));
-            } else {
-                return Err(Error::new(
-                    ident.span(),
-                    format!("unknown argument \"{ident}\". Supported arguments are: `scale` and `restart`."),
-                ));
-            }
-            let Ok(_): Result<Token![,]> = content.parse() else {
-                break
-            };
-        }
-
-        if !content.is_empty() {
-            return Err(content.error("expected end of input"));
-        }
-
-        Ok(args)
-    }
-}
-
 impl Parse for AsyncMain {
     fn parse(input: ParseStream) -> Result<Self> {
         let item: ItemFn = input.parse()?;
+
         let is_async = item.sig.asyncness.is_some();
+        let is_main = item.sig.ident == "main";
+
+        if !is_async && !is_main {
+            return Err({
+                Error::new(item.sig.span(),
+                "expected `async fn main`. help: rename this function to `main` and make it `async`.")
+            });
+        }
+
         if !is_async {
             return Err({
                 Error::new(
@@ -106,6 +54,15 @@ impl Parse for AsyncMain {
                 )
             });
         }
+        if !is_main {
+            return Err({
+                Error::new(
+                    item.sig.span(),
+                    "expected `async fn main()`. help: rename this function to `main`.",
+                )
+            });
+        }
+
         Ok(AsyncMain { item })
     }
 }
