@@ -62,12 +62,12 @@ impl Driver {
                 let Entry::Occupied(mut entry) = self.wakers.entry(cevent.user_data()) else {
                     unreachable!(
                         "This is a bug in osiris: a waker has been lost, a CQE was recieved but no associated waker was found."
-                    ); 
+                    );
                 };
                 let Continue(waker) = entry.insert(Break(cevent)) else {
                     unreachable!(
                         "This is a bug in osiris: a non-multishot SQE has recieved more than one associated CQE."
-                    ); 
+                    );
                 };
                 waker.wake();
             }

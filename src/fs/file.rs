@@ -505,16 +505,14 @@ impl File {
 /// # osiris::block_on(async {
 /// use osiris::fs;
 ///
-/// fs::remove_file("a.txt").await?;
+/// fs::remove_file("foo.txt").await?;
 /// # std::io::Result::Ok(()) }).unwrap();
 /// ```
-#[cfg(feature = "unstable")]
 pub async fn remove_file(path: impl AsRef<Path>) -> Result<()> {
     _remove_file(path.as_ref()).await
 }
 
 /// Non generic remove file
-#[cfg(feature = "unstable")]
 async fn _remove_file(path: &Path) -> Result<()> {
     let path = cstr(path)?;
     op::unlink_at(path).await?;

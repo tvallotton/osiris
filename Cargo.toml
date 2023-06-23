@@ -8,27 +8,26 @@ edition = "2021"
 
 [features]
 macros = ["osiris-macros"]
-unstable = ["io-uring/unstable"]
-
 
 [profile.release]
 debug = true
 
 [dependencies]
+affinity = "0.1.2"
 dns-protocol = "0.1.1"
 fastrand = "1.9.0"
 libc = "0.2.138"
 memchr = "2.5.0"
+num_cpus = "1.15.0"
 osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }
 pin-project-lite = "0.2.9"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 io-uring = { version = "0.5.6" }
 
-
 [dev-dependencies]
 dotenv = "0.15.0"
-osiris = { path = ".", features = ["unstable", "macros"] }
+osiris = { path = ".", features = ["macros"] }
 
 [build-dependencies]
 cfg_aliases = "0.1.0"

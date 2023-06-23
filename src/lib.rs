@@ -9,14 +9,32 @@
 //! # Thread per core
 //! Osiris follows the thread per core architecture, avoiding thread synchronization whenever possible.
 //! This means, that most types are `!Send` and `!Sync`. By default, when using the [`main`] macro the
-//! application is single threaded. It can be made multithreaded by settning the workers parameter:
+//! application is single threaded. It can be made multithreaded by settning the `scale` parameter:
 //! ```rust
-//! #[osiris::main(scale = num_cpus::get())]
+//! // this will spawn one thread per core and set the affinity for each thread to a separate CPU.
+//! #[osiris::main(scale = true)]
 //! async fn main() {
 //!     // ...
 //! }
 //! ```
-//!
+//! To restart threads if they panic or in [`Err`] the `restart` configuration can be set.
+//! It won't restart if the thread exists normally with a successful [exit code](std::process::ExitCode).
+//! ```rust
+//! #[osiris::main(scale = true, restart = true)]
+//! async fn main() {
+//!     // ...
+//! }
+//! ```
+//! If more control is needed over the number of threads, it can be specified explicitly
+//! ```rust
+//! // this will spawn one thread per core and set the affinity
+//! #[osiris::main(scale = 4)]
+//! async fn main() {
+//!     // ...
+//! }
+//! ```
+//! Note that scaling the application will create identical parallel replicas of the main task, which is useful for a
+//! concurrent server, but not as much for clients.
 //!
 //! # Working with tasks
 //! In Osiris, tasks can be created using the [`spawn`] function, which returns a [`JoinHandle`](task::JoinHandle).
@@ -79,10 +97,14 @@
 //! for what kinds of buffers can be used for I/O. Specifically, it cannot work with non-'static
 //! references, only owned buffers or 'static references.
 //!
+//! Generally, all I/O APIs will return back the buffer that was fed as an input.
+//! In order to work with slices the [`slice`](buf::IoBuf::slice) method can be used.
+//!
 //! ## File system
 //! Unlike nonblocking based runtimes, osiris offers true asynchronous file I/O
 //! ```
 //! use osiris::fs::read_to_string;
+//!
 //! #[osiris::main]
 //! async fn main() -> std::io::Result<()> {
 //!     let data = read_to_string("./Cargo.toml").await?;
@@ -90,6 +112,43 @@
 //!     Ok(())
 //! }
 //! ```
+//! ## Networking
+//! Osiris offers networking types analogous to the ones found in [`std::net`].
+//! ```no_run
+//! use osiris::net::TcpStream;
+//!
+//! #[osiris::main]
+//! async fn main() -> std::io::Result<()> {
+//!     let stream = TcpStream::connect("www.example.com:80").await?;
+//!     stream
+//!         .write_all(b"GET / HTTP/1.1\r\nHost: www.example.com\r\n\r\n")
+//!         .await.0?;
+//!     let buf = vec![0; 256];
+//!     let (n, buf) = stream.read(buf).await;
+//!     let response = &buf[..n?];
+//!     assert!(response .starts_with(b"HTTP/1.1 200 OK"));
+//!     stream.close().await?;
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Timers
+//! Any future can be cancelled after a timeout with the [`timeout`](`time::timeout::timeout`) function.
+//! ```
+//! use osiris::time::{timeout, sleep, Duration};
+//! #[osiris::main]
+//! async fn main() {
+//!     let future = async {
+//!         // this is going to take too long
+//!         sleep(Duration::from_secs(1000)).await
+//!     };
+//!     let res = timeout(Duration::from_micros(100), future).await;
+//!     assert!(res.is_err(), "{res:?}");
+//! }
+//! ```
+//!
+//!
+
 #![deny(warnings)]
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
@@ -106,6 +165,7 @@ pub use task::{detach, spawn};
 pub mod buf;
 #[cfg(target_os = "linux")]
 pub mod fs;
+pub mod future;
 #[cfg(target_os = "linux")]
 pub mod net;
 mod reactor;
@@ -114,7 +174,6 @@ pub mod sync;
 pub mod task;
 #[cfg(target_os = "linux")]
 pub mod time;
-pub mod future;
 #[cfg(feature = "macros")]
 pub use osiris_macros::{main, test};
 #[doc(hidden)]

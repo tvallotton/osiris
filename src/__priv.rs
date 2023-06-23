@@ -1,62 +1,92 @@
 //! This is used for internal macros only.
 //! Changes to this API are not considered breaking.
 
-use std::{process::{ExitCode, Termination}, panic::UnwindSafe};
+use std::{
+    panic::UnwindSafe,
+    process::{ExitCode, Termination},
+};
 
-pub fn start<T>(workers: u16, restart: bool, main: fn() -> T) -> ExitCode
+pub fn run<T>(mut scale: usize, restart: bool, main: fn() -> T) -> ExitCode
 where
     T: Termination,
 {
-    if workers == 1 && !restart {
+    if scale == 0 {
+        scale = affinity::get_core_num();
+    }
+
+    if scale == 1 && !restart {
         main().report()
-    } else if workers == 1 {
-        loop {
-            match std::panic::catch_unwind(main) {
-                Ok(ok) => return ok.report(),
-                Err(_) => continue,
-            }
-        }
+    } else if scale == 1 {
+        no_scale_restart(main)
     } else if !restart {
-        scaled_no_restart(workers, main)
+        scaled_no_restart(scale, main)
     } else {
-        scaled_and_restart(workers, || main().report())
+        scaled_and_restart(scale, || main().report())
     }
 }
 
-fn scaled_no_restart<T: Termination>(workers: u16,  main: fn() -> T) -> ExitCode {
+fn no_scale_restart<T: Termination>(main: fn() -> T) -> ExitCode {
+    loop {
+        match std::panic::catch_unwind(main) {
+            Ok(ok) => return ok.report(),
+            Err(_) => {
+                eprintln!("osiris: restarting thread");
+                continue;
+            }
+        }
+    }
+}
+
+fn scaled_no_restart<T: Termination>(scale: usize, main: fn() -> T) -> ExitCode {
+    let n = affinity::get_core_num();
     std::thread::scope(|s| {
-        for _ in 0..workers {
-            s.spawn(|| {
-                main().report(); 
+        for id in 0..scale {
+            let id = id % n;
+            s.spawn(move || {
+                affinity::set_thread_affinity([id]).ok();
+                main().report();
             });
         }
     });
     ExitCode::SUCCESS
 }
 
-fn scaled_and_restart(workers: u16,  main: impl Fn() -> ExitCode + UnwindSafe + Send + Copy) -> ExitCode {
-    let (tx, rx) = std::sync::mpsc::channel();
+fn scaled_and_restart(
+    scale: usize,
+    main: impl Fn() -> ExitCode + Copy + Clone + Sync + Send + UnwindSafe,
+) -> ExitCode {
     std::thread::scope(|s| {
-        for _ in 0..workers {
+        let n = affinity::get_core_num();
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        for id in 0..scale {
             let tx = tx.clone();
-            s.spawn(move || tx.send(std::panic::catch_unwind(main)));
+            s.spawn(move || {
+                let id = id % n;
+                affinity::set_thread_affinity([id]).ok();
+                tx.send((id, std::panic::catch_unwind(main)))
+            });
         }
+
         let mut exit_count = 0;
-        loop {
-            if exit_count >= workers {
-                return std::process::ExitCode::SUCCESS;
-            }
-            let Ok(res) = rx.recv() else {
-                unreachable!(); 
+
+        while exit_count < scale {
+            let Ok((id, res)) = rx.recv() else {
+                unreachable!();
             };
             let Err(_) = res else {
                 exit_count += 1;
-                continue; 
+                continue;
             };
             // we restart the panicked dead replica
             let tx = tx.clone();
-            s.spawn(move || tx.send(std::panic::catch_unwind(main)));
+
+            s.spawn(move || {
+                eprintln!("osiris: restarting thread #{id}");
+                affinity::set_thread_affinity([id]).ok();
+                tx.send((id, std::panic::catch_unwind(main)))
+            });
         }
-    });
-    ExitCode::SUCCESS
+        ExitCode::SUCCESS
+    })
 }

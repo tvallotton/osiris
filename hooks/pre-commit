@@ -1,5 +1,5 @@
 #!/bin/sh
 
 cargo +nightly fmt
-cargo test --doc -F unstable
+cargo test --doc -F macros
 

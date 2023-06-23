@@ -45,6 +45,7 @@ use super::{
 ///     let response = &buf[..n?];
 ///     # dbg!(std::str::from_utf8(response));
 ///     assert!(response .starts_with(b"HTTP/1.1 200 OK"));
+///     stream.close().await?;
 ///     Ok(())
 /// }
 /// ```

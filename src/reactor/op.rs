@@ -35,7 +35,7 @@ pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, pos: i64) -> (Result<usiz
     let (cqe, mut buf) = unsafe { submit(sqe, buf).await };
 
     let Ok(cqe) = cqe else {
-        return (cqe.map(|_| unreachable!()), buf); 
+        return (cqe.map(|_| unreachable!()), buf);
     };
     let len = cqe.result() as usize;
 

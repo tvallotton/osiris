@@ -515,7 +515,7 @@ impl<T> Receiver<T> {
             receiver: &'a Receiver<T>,
             id: u32,
         }
-
+        #[allow(warnings)]
         impl<'a, T> Drop for Guard<'a, T> {
             fn drop(&mut self) {
                 let mut channel = self.receiver.channel().borrow_mut();
