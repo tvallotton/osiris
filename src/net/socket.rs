@@ -1,7 +1,7 @@
 #![allow(clippy::upper_case_acronyms)]
 use std::{
     io::{Error, Result},
-    mem::forget,
+    mem::{forget, size_of_val},
     net::{Shutdown, SocketAddr},
 };
 
@@ -11,7 +11,7 @@ use crate::{
     reactor::op::{self},
 };
 
-use libc::SOCK_CLOEXEC;
+use libc::{SOCK_CLOEXEC, SOL_SOCKET, SO_REUSEPORT};
 
 use super::utils::socket_addr;
 
@@ -89,6 +89,34 @@ impl Socket {
         }
         Ok(())
     }
+
+    pub fn listen(&self, backlog: u32) -> Result<()> {
+        let res = unsafe { libc::listen(self.fd, backlog as i32) };
+        if res == -1 {
+            return Err(Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    pub fn set_reuseport(&self) -> Result<()> {
+        let ref optval = 1;
+        let size = size_of_val(optval) as u32;
+        let fd = self.fd;
+        let res = unsafe {
+            libc::setsockopt(
+                fd,
+                SOL_SOCKET,
+                SO_REUSEPORT,
+                optval as *const _ as *const _,
+                size,
+            )
+        };
+        if res == -1 {
+            return Err(Error::last_os_error());
+        }
+        Ok(())
+    }
+
     pub async fn accept(&self) -> Result<(Socket, SocketAddr)> {
         let (fd, addr) = op::accept(self.fd).await?;
         Ok((Socket { fd }, addr))

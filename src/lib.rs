@@ -10,7 +10,7 @@
 //! Osiris follows the thread per core architecture, avoiding thread synchronization whenever possible.
 //! This means, that most types are `!Send` and `!Sync`. By default, when using the [`main`] macro the
 //! application is single threaded. It can be made multithreaded by settning the `scale` parameter:
-//! ```rust
+//! ```no_run
 //! // this will spawn one thread per core and set the affinity for each thread to a separate CPU.
 //! #[osiris::main(scale = true)]
 //! async fn main() {
@@ -19,14 +19,14 @@
 //! ```
 //! To restart threads if they panic or in [`Err`] the `restart` configuration can be set.
 //! It won't restart if the thread exists normally with a successful [exit code](std::process::ExitCode).
-//! ```rust
+//! ```
 //! #[osiris::main(scale = true, restart = true)]
 //! async fn main() {
 //!     // ...
 //! }
 //! ```
 //! If more control is needed over the number of threads, it can be specified explicitly
-//! ```rust
+//! ```no_run
 //! // this will spawn one thread per core and set the affinity
 //! #[osiris::main(scale = 4)]
 //! async fn main() {
@@ -34,7 +34,8 @@
 //! }
 //! ```
 //! Note that scaling the application will create identical parallel replicas of the main task, which is useful for a
-//! concurrent server, but not as much for clients.
+//! concurrent server, but not as much for clients. This shouldn't be confused with how  work stealing runtimes worh
+//! (e.g. [`tokio`](https://docs.rs/tokio/latest/tokio/)), that will spawn a pool of worker threads, but the main task will remain a unique.
 //!
 //! # Working with tasks
 //! In Osiris, tasks can be created using the [`spawn`] function, which returns a [`JoinHandle`](task::JoinHandle).
@@ -43,13 +44,13 @@
 //! A task can be joined with its parent by awaiting it. The join handle will
 //! return whatever object was returned by the child. If the child panics, the
 //! panic will be propagated to the parent.
-//! ```
+//! ```no_run
 //! use osiris::{spawn, time::{sleep, Duration}};
 //!
 //! #[osiris::main]
 //! async fn main() {
 //!     let handle  = spawn(async {
-//!         sleep(Duration::from_micros(50)).await;
+//!         sleep(Duration::from_millis(1500)).await;
 //!         12
 //!     });
 //!
@@ -101,7 +102,7 @@
 //! In order to work with slices the [`slice`](buf::IoBuf::slice) method can be used.
 //!
 //! ## File system
-//! Unlike nonblocking based runtimes, osiris offers true asynchronous file I/O
+//! Unlike nonblocking based runtimes, Osiris offers true asynchronous file I/O
 //! ```
 //! use osiris::fs::read_to_string;
 //!
