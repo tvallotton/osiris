@@ -2,20 +2,43 @@
 //! Changes to this API are not considered breaking.
 
 use std::{
+    io,
     panic::UnwindSafe,
     process::{ExitCode, Termination},
 };
 
-pub fn run<T>(mut scale: usize, restart: bool, main: fn() -> T) -> ExitCode
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for bool {}
+    impl Sealed for usize {}
+}
+pub trait IntoScale: sealed::Sealed {
+    fn scale(self) -> usize;
+}
+
+impl IntoScale for bool {
+    fn scale(self) -> usize {
+        if self {
+            affinity::get_core_num()
+        } else {
+            1
+        }
+    }
+}
+
+impl IntoScale for usize {
+    fn scale(self) -> usize {
+        self
+    }
+}
+
+pub fn run<T>(scale: impl IntoScale, restart: bool, main: fn() -> io::Result<T>) -> ExitCode
 where
     T: Termination,
 {
-    if scale == 0 {
-        scale = affinity::get_core_num();
-    }
-
+    let scale = scale.scale();
     if scale == 1 && !restart {
-        main().report()
+        main().unwrap().report()
     } else if scale == 1 {
         no_scale_restart(main)
     } else if !restart {
@@ -25,10 +48,10 @@ where
     }
 }
 
-fn no_scale_restart<T: Termination>(main: fn() -> T) -> ExitCode {
+fn no_scale_restart<T: Termination>(main: fn() -> io::Result<T>) -> ExitCode {
     loop {
         match std::panic::catch_unwind(main) {
-            Ok(ok) => return ok.report(),
+            Ok(ok) => return ok.unwrap().report(),
             Err(_) => {
                 eprintln!("osiris: restarting thread");
                 continue;
@@ -37,14 +60,14 @@ fn no_scale_restart<T: Termination>(main: fn() -> T) -> ExitCode {
     }
 }
 
-fn scaled_no_restart<T: Termination>(scale: usize, main: fn() -> T) -> ExitCode {
+fn scaled_no_restart<T: Termination>(scale: usize, main: fn() -> io::Result<T>) -> ExitCode {
     let n = affinity::get_core_num();
     std::thread::scope(|s| {
         for id in 0..scale {
             let id = id % n;
             s.spawn(move || {
                 affinity::set_thread_affinity([id]).ok();
-                main().report();
+                main().unwrap().report();
             });
         }
     });
