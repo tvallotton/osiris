@@ -55,7 +55,6 @@ impl ResolvConf {
             let mut columns = line.split_ascii_whitespace();
             let Some(key) = columns.next() else { continue };
             let Some(value) = columns.next() else { continue };
-            println!("{key:?}");
 
             match key {
                 "search" => {
