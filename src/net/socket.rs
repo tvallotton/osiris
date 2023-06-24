@@ -1,15 +1,11 @@
 #![allow(clippy::upper_case_acronyms)]
-use std::{
-    io::{Error, Result},
-    mem::{forget, size_of_val},
-    net::{Shutdown, SocketAddr},
-};
+use std::io::{Error, Result};
+use std::mem::{forget, size_of_val};
+use std::net::{Shutdown, SocketAddr};
 
-use crate::{
-    buf::{IoBuf, IoBufMut},
-    detach,
-    reactor::op::{self},
-};
+use crate::buf::{IoBuf, IoBufMut};
+use crate::detach;
+use crate::reactor::op::{self};
 
 use libc::{SOCK_CLOEXEC, SOL_SOCKET, SO_REUSEPORT};
 

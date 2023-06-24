@@ -1,17 +1,11 @@
-use std::{
-    io::{Error, ErrorKind, Result},
-    net::Shutdown,
-};
+use std::io::{Error, ErrorKind, Result};
+use std::net::Shutdown;
 
-use crate::{
-    buf::{IoBuf, IoBufMut},
-    reactor::op,
-};
+use crate::buf::{IoBuf, IoBufMut};
+use crate::reactor::op;
 
-use super::{
-    socket::{Domain, Protocol, Socket, Type},
-    to_socket_addr::{try_until_success, ToSocketAddrs},
-};
+use super::socket::{Domain, Protocol, Socket, Type};
+use super::to_socket_addr::{try_until_success, ToSocketAddrs};
 
 /// A TCP stream between a local and a remote socket.
 ///

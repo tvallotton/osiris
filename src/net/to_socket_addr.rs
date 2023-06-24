@@ -1,9 +1,8 @@
-use std::future::{ready, Ready};
+use std::future::{ready, Future, Ready};
 use std::io::{Error, ErrorKind, Result};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::pin::Pin;
 use std::vec;
-use std::{future::Future, net::SocketAddr};
 
 use crate::net::dns;
 

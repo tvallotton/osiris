@@ -1,6 +1,8 @@
 use crate::net::utils::{is_whitespace, lines, remove_comment};
 use resolv::ResolvConf;
-use std::{io::Result, net::IpAddr, str::from_utf8};
+use std::io::Result;
+use std::net::IpAddr;
+use std::str::from_utf8;
 
 mod lookup_serv;
 mod resolv;

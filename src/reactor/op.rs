@@ -1,24 +1,18 @@
 #![allow(warnings)]
-use std::{
-    ffi::CString,
-    io::{Error, Result},
-    mem::{size_of_val, zeroed},
-    net::{Shutdown, SocketAddr},
-};
+use std::ffi::CString;
+use std::io::{Error, Result};
+use std::mem::{size_of_val, zeroed};
+use std::net::{Shutdown, SocketAddr};
 
-use io_uring::{
-    opcode::{
-        self, Accept, Close, Connect, Fsync, OpenAt, Read, Recv, SendMsg, Socket, Statx, UnlinkAt,
-        Write,
-    },
-    types::{Fd, FsyncFlags},
+use io_uring::opcode::{
+    self, Accept, Close, Connect, Fsync, OpenAt, Read, Recv, SendMsg, Socket, Statx, UnlinkAt,
+    Write,
 };
+use io_uring::types::{Fd, FsyncFlags};
 use libc::{iovec, msghdr, AT_FDCWD};
 
-use crate::{
-    buf::{IoBuf, IoBufMut},
-    net::utils::{socket_addr, to_std_socket_addr},
-};
+use crate::buf::{IoBuf, IoBufMut};
+use crate::net::utils::{socket_addr, to_std_socket_addr};
 
 use super::submit;
 

@@ -1,8 +1,10 @@
-use std::{io::Result, net::SocketAddr};
+use std::io::Result;
+use std::net::SocketAddr;
 
 use crate::net::socket::{Domain, Protocol, Type};
 
-use super::{socket::Socket, TcpStream};
+use super::socket::Socket;
+use super::TcpStream;
 
 pub struct TcpListener {
     socket: Socket,

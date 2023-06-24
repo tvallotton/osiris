@@ -1,4 +1,5 @@
-use std::{net::IpAddr, rc::Rc};
+use std::net::IpAddr;
+use std::rc::Rc;
 
 /// Structural form of `resolv.conf`.
 #[derive(Clone, Debug)]

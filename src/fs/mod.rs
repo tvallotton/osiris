@@ -5,8 +5,7 @@ use std::path::Path;
 
 pub use dir::{create_dir, remove_dir};
 
-pub use file::remove_file;
-pub use file::File;
+pub use file::{remove_file, File};
 pub use metadata::{metadata, Metadata};
 pub use open_options::OpenOptions;
 pub use read::{read, read_to_string};
