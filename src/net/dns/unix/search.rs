@@ -8,7 +8,13 @@ use std::{
 
 use dns_protocol::{Flags, Message, Question, ResourceRecord, ResourceType};
 
-use crate::{buf::IoBuf, net::udp::UdpSocket, spawn, task::yield_now, time::timeout};
+use crate::{
+    buf::IoBuf,
+    net::{udp::UdpSocket, TcpStream},
+    spawn,
+    task::yield_now,
+    time::timeout,
+};
 
 use super::resolv::ResolvConf;
 
@@ -247,68 +253,60 @@ async fn question_with_udp(
 
 /// Query a nameserver for the given question, using the TCP protocol.
 #[cold]
-async fn question_with_tcp(
-    _id: u16,
-    query: impl IoBuf,
-    _nameserver: IpAddr,
-) -> Result<Vec<IpAddr>> {
+async fn question_with_tcp(id: u16, query: impl IoBuf, nameserver: IpAddr) -> Result<Vec<IpAddr>> {
     const RECORD_BUFSIZE: usize = 16;
 
     if query.bytes_init() > u16::MAX as usize {
         return Err(Error::new(ErrorKind::Other, "query too large for TCP"));
     }
-    todo!()
-    // // Open the socket to the server.
-    // let mut socket = Async::<TcpStream>::connect((nameserver, 53)).await?;
 
-    // // Write the length of the query.
-    // let len_bytes = (query.len() as u16).to_be_bytes();
-    // socket.write_all(&len_bytes).await?;
+    // Open the socket to the server.
+    let socket = TcpStream::connect((nameserver, 53)).await?;
 
-    // // Write the query.
-    // socket.write_all(query).await?;
+    // Write the length of the query.
+    let len_bytes = (query.bytes_init() as u16).to_be_bytes();
+    socket.write_all(len_bytes.to_vec()).await.0?;
 
-    // // Read the length of the response.
-    // let mut len_bytes = [0; 2];
-    // socket.read_exact(&mut len_bytes).await?;
-    // let len = u16::from_be_bytes(len_bytes) as usize;
+    // Write the query.
+    socket.write_all(query).await.0?;
 
-    // // Read the response.
-    // let mut stack_buffer = [0; 1024];
-    // let mut heap_buffer;
-    // let buf = if len > stack_buffer.len() {
-    //     // Initialize the heap buffer and return a pointer to it.
-    //     heap_buffer = vec![0; len];
-    //     heap_buffer.as_mut_slice()
-    // } else {
-    //     &mut stack_buffer
-    // };
+    // Read the length of the response.
+    let len_bytes = vec![0; 2];
+    let (Ok(2), len_bytes) = socket.read(len_bytes).await else {
+        return Err(Error::new(ErrorKind::Other, "received malformed response."))
+    };
 
-    // socket.read_exact(buf).await?;
+    let len = u16::from_be_bytes([len_bytes[0], len_bytes[1]]) as usize;
 
-    // // Parse the response.
-    // let mut q_buf = [Question::default(); 1];
-    // let mut answers = [ResourceRecord::default(); RECORD_BUFSIZE];
-    // let mut authority = [ResourceRecord::default(); RECORD_BUFSIZE];
-    // let mut additional = [ResourceRecord::default(); RECORD_BUFSIZE];
+    let buf = vec![0; len];
 
-    // let message = Message::read(
-    //     &buf[..len],
-    //     &mut q_buf,
-    //     &mut answers,
-    //     &mut authority,
-    //     &mut additional,
-    // )
-    // .map_err(|err| Error::new(ErrorKind::Other, err))?;
+    let (n, buf) = socket.read(buf).await;
 
-    // if message.id() != id {
-    //     return Err(Error::new(ErrorKind::Other, "invalid ID in response"));
-    // }
+    let buf = buf.slice(..n?);
 
-    // // Parse the answers as address info.
-    // let mut addrs = vec![];
-    // parse_answers(&message, &mut addrs);
-    // Ok(addrs)
+    // Parse the response.
+    let mut q_buf = [Question::default(); 1];
+    let mut answers = [ResourceRecord::default(); RECORD_BUFSIZE];
+    let mut authority = [ResourceRecord::default(); RECORD_BUFSIZE];
+    let mut additional = [ResourceRecord::default(); RECORD_BUFSIZE];
+
+    let message = Message::read(
+        &buf[..len],
+        &mut q_buf,
+        &mut answers,
+        &mut authority,
+        &mut additional,
+    )
+    .map_err(|err| Error::new(ErrorKind::Other, err))?;
+
+    if message.id() != id {
+        return Err(Error::new(ErrorKind::Other, "invalid ID in response"));
+    }
+
+    // Parse the answers as address info.
+    let mut addrs = vec![];
+    parse_answers(&message, &mut addrs);
+    Ok(addrs)
 }
 
 /// Append address information to the vector, given the DNS response.
