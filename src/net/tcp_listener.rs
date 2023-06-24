@@ -27,7 +27,7 @@ impl TcpListener {
 #[test]
 fn reuseport() {
     crate::block_on(async {
-        let _listener = TcpListener::bind("127.0.0.1:8080".parse().unwrap()).unwrap();
+        let _listener1 = TcpListener::bind("127.0.0.1:8080".parse().unwrap()).unwrap();
         let _listener2 = TcpListener::bind("127.0.0.1:8080".parse().unwrap()).unwrap();
     })
     .unwrap();

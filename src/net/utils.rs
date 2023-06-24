@@ -107,15 +107,15 @@ pub(crate) fn socket_addr(addr: &SocketAddr) -> (SocketAddrCRepr, libc::socklen_
 
 /// Returns this address as a `SocketAddr` if it is in the `AF_INET` (IPv4)
 /// or `AF_INET6` (IPv6) family, otherwise returns `None`.
-pub fn to_std_socket_addr(storage: &libc::sockaddr_storage) -> Option<SocketAddr> {
-    if storage.ss_family == AF_INET as _ {
+pub fn to_std_socket_addr(storage: &libc::sockaddr) -> Option<SocketAddr> {
+    if storage.sa_family == AF_INET as _ {
         // SAFETY: if the `ss_family` field is `AF_INET` then storage must
         // be a `sockaddr_in`.
         let addr: &libc::sockaddr_in = unsafe { &*(addr_of!(storage).cast()) };
         let port = u16::from_be(addr.sin_port);
         let ip = Ipv4Addr::from(addr.sin_addr.s_addr.to_ne_bytes());
         Some(SocketAddr::V4(SocketAddrV4::new(ip, port)))
-    } else if storage.ss_family == AF_INET6 as _ {
+    } else if storage.sa_family == AF_INET6 as _ {
         // SAFETY: if the `ss_family` field is `AF_INET6` then storage must
         // be a `sockaddr_in6`.
         let addr: &libc::sockaddr_in6 = unsafe { &*(addr_of!(storage).cast()) };
