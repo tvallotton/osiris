@@ -1,7 +1,7 @@
 use osiris::fs::{create_dir, metadata, remove_dir, remove_file, File, OpenOptions};
 
 #[osiris::test]
-fn test_metadata() {
+async fn test_metadata() {
     let dir = metadata("tests/fs_test_files").await.unwrap();
     assert!(dir.is_dir());
 
