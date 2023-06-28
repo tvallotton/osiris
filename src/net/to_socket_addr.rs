@@ -80,7 +80,7 @@ impl<'a> ToSocketAddrs for &'a (&str, u16) {
     type Iter = vec::IntoIter<SocketAddr>;
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
     fn to_socket_addrs(self) -> Self::Fut {
-        (&*self.0, self.1).to_socket_addrs()
+        (self.0, self.1).to_socket_addrs()
     }
 }
 

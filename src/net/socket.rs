@@ -99,7 +99,7 @@ impl Socket {
     }
 
     pub fn set_reuseport(&self) -> Result<()> {
-        let ref optval = 1;
+        let optval = &1;
         let size = size_of_val(optval) as u32;
         let fd = self.fd;
         let res = unsafe {

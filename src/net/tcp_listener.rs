@@ -14,7 +14,7 @@ impl TcpListener {
         let socket = Socket::new(domain, Type::STREAM, Protocol::TCP)?;
         socket.set_reuseport()?;
         socket.bind(&addr)?;
-        socket.listen(128)?;
+        socket.listen(8192)?;
         Ok(TcpListener { socket })
     }
 
