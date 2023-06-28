@@ -106,7 +106,7 @@ impl TcpStream {
             let domain = Domain::from(addr);
             let ty = Type::STREAM;
             let proto = Protocol::TCP;
-            let socket = Socket::new(domain, ty, proto)?;
+            let socket = Socket::new(domain, ty, proto).await?;
             socket.connect(addr).await?;
             Ok(socket)
         })

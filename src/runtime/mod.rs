@@ -157,6 +157,8 @@ impl Runtime {
             // completes.
             let handle = Pin::new(&mut *handle);
             if executor.main_handle.get() {
+                println!("reactor len: {}", reactor.len());
+                println!("executor len: {}", executor.queue.borrow_mut().len());
                 executor.main_handle.set(false);
                 if let Poll::Ready(out) = handle.poll(handle_cx) {
                     return Ok(out);
@@ -164,7 +166,6 @@ impl Runtime {
             }
             executor.poll(config.event_interval, task_id);
 
-            reactor.wake_tasks();
             println!("reactor len: {}", reactor.len());
             println!("executor len: {}", executor.queue.borrow_mut().len());
             if executor.is_idle() && !executor.main_handle.get() {

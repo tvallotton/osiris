@@ -58,7 +58,7 @@ impl TcpListener {
     pub async fn bind<A: ToSocketAddrs>(addr: A) -> Result<TcpListener> {
         try_until_success(addr, |addr| async move {
             let domain = Domain::from(addr);
-            let socket = Socket::new(domain, Type::STREAM, Protocol::TCP)?;
+            let socket = Socket::new(domain, Type::STREAM, Protocol::TCP).await?;
             socket.set_reuseport()?;
             socket.bind(&addr)?;
             socket.listen(128)?;
@@ -84,53 +84,4 @@ fn reuseport() {
         let _listener2 = TcpListener::bind("127.0.0.1:8080").await.unwrap();
     })
     .unwrap();
-}
-
-mod __ {
-    #![allow(warnings)]
-    use crate::buf::IoBuf;
-    use crate::detach;
-    use crate::net::{TcpListener, TcpStream};
-    use std::io::Result;
-
-    use crate::block_on;
-
-    async fn handle_client(stream: TcpStream) -> Result<()> {
-        let buf = vec![0; 2048];
-        let (n, buf) = stream.read(buf).await;
-        let buf = buf.slice(..n?);
-        stream.write_all(buf).await.0?;
-        stream.close().await
-    }
-
-    // #[test]
-    fn slow() -> Result<()> {
-        block_on(async {
-            let listener = TcpListener::bind("127.0.0.1:8000").await?;
-            let time = std::time::Instant::now();
-            detach(async move {
-                for i in 0..1000 {
-                    detach(async move {
-                        crate::time::sleep(std::time::Duration::from_secs(2));
-                        let stream = TcpStream::connect("127.0.0.1:8000").await.unwrap();
-                        let msg = format!("the code is: {}", fastrand::u128(..));
-                        stream.write_all(msg.clone().into_bytes()).await.0.unwrap();
-                        let buf = vec![0; 2048];
-
-                        let (n, buf) = stream.read(buf).await;
-                        let buf = buf.slice(0..n.unwrap());
-                        assert_eq!(std::str::from_utf8(&buf).unwrap(), msg);
-                        println!("{i}: {:?}", time.elapsed());
-                    });
-                    crate::task::yield_now().await;
-                }
-            });
-            loop {
-                let (stream, _) = listener.accept().await?;
-                detach(handle_client(stream));
-            }
-            Result::Ok(())
-        });
-        Ok(())
-    }
 }

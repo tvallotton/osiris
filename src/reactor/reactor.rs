@@ -60,7 +60,9 @@ impl Driver {
     pub fn wake_tasks(&mut self) {
         #[cfg(target_os = "linux")]
         {
-            let cqueue = self.io_uring.completion();
+            let mut cqueue = self.io_uring.completion();
+            cqueue.sync();
+            let mut woken = 0;
             for cevent in cqueue {
                 let Entry::Occupied(mut entry) = self.wakers.entry(cevent.user_data()) else {
                     unreachable!(
@@ -72,8 +74,10 @@ impl Driver {
                         "This is a bug in osiris: a non-multishot SQE has recieved more than one associated CQE."
                     );
                 };
+                woken += 1;
                 waker.wake();
             }
+            println!("woken: {woken}");
         }
     }
 

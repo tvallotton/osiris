@@ -46,10 +46,10 @@ pub struct Socket {
 
 impl Socket {
     /// Creates a new socket
-    pub fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
-        let fd = unsafe { libc::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _) };
+    pub async fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
         // TODO: Figure out why this fails
-        // let fd = op::socket(domain as _, ty as i32, proto as _, None).await?;
+        // let fd = op::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _, None).await?;
+        let fd = unsafe { libc::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _) };
         Ok(Self { fd })
     }
 
@@ -95,7 +95,7 @@ impl Socket {
     }
 
     pub fn set_reuseport(&self) -> Result<()> {
-        let ref optval = 1;
+        let optval = &1;
         let size = size_of_val(optval) as u32;
         let fd = self.fd;
         let res = unsafe {

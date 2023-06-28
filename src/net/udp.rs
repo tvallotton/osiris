@@ -13,7 +13,7 @@ impl UdpSocket {
 where {
         try_until_success(addr, |addr| async move {
             let domain = addr.into();
-            let socket = Socket::new(domain, Type::DGRAM, Protocol::UDP)?;
+            let socket = Socket::new(domain, Type::DGRAM, Protocol::UDP).await?;
             socket.bind(&addr)?;
             Ok(UdpSocket { socket })
         })
