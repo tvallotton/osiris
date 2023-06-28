@@ -9,7 +9,9 @@ use super::{socket::Socket, to_socket_addr::try_until_success, TcpStream};
 /// After creating a `TcpListener` by [`bind`]ing it to a socket address, it listens
 /// for incoming TCP connections. These can be accepted by calling [`accept`].
 ///
-/// The socket will be closed when the value is dropped.
+/// The socket will be closed asynchronously on the background when the value is dropped.
+/// There is no guarantee of when the operation will succeed. Alternatively, the listener
+/// can be closed explicitly with the [`close`](TcpListener::close) method.
 ///
 /// The Transmission Control Protocol is specified in [IETF RFC 793].
 ///
@@ -111,17 +113,17 @@ impl TcpListener {
         let (socket, addr) = self.socket.accept().await?;
         Ok((TcpStream { socket }, addr))
     }
+
+    pub async fn close(self) -> Result<()> {
+        self.socket.close().await
+    }
 }
 
 #[test]
 fn reuseport() {
     crate::block_on(async {
-        let _listener1 = TcpListener::bind("127.0.0.1:8080".parse().unwrap())
-            .await
-            .unwrap();
-        let _listener2 = TcpListener::bind("127.0.0.1:8080".parse().unwrap())
-            .await
-            .unwrap();
+        let _listener1 = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+        let _listener2 = TcpListener::bind("127.0.0.1:8080").await.unwrap();
     })
     .unwrap();
 }

@@ -8,13 +8,12 @@ use std::{
 
 use dns_protocol::{Flags, Message, Question, ResourceRecord, ResourceType};
 
-use crate::{
-    buf::IoBuf,
-    net::{udp::UdpSocket, TcpStream},
-    spawn,
-    task::yield_now,
-    time::timeout,
-};
+use crate::buf::IoBuf;
+use crate::net::udp::UdpSocket;
+use crate::net::TcpStream;
+use crate::spawn;
+use crate::task::yield_now;
+use crate::time::timeout;
 
 use super::resolv::ResolvConf;
 

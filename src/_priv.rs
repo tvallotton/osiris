@@ -1,11 +1,9 @@
 //! This is used for internal macros only.
 //! Changes to this API are not considered breaking.
 
-use std::{
-    io,
-    panic::UnwindSafe,
-    process::{ExitCode, Termination},
-};
+use std::io;
+use std::panic::UnwindSafe;
+use std::process::{ExitCode, Termination};
 
 mod sealed {
     pub trait Sealed {}

@@ -1,9 +1,8 @@
-use std::{io::Result, str::from_utf8};
+use std::io::Result;
+use std::str::from_utf8;
 
-use crate::net::{
-    socket::Protocol,
-    utils::{is_whitespace, lines, remove_comment},
-};
+use crate::net::socket::Protocol;
+use crate::net::utils::{is_whitespace, lines, remove_comment};
 #[derive(Debug, Clone)]
 pub struct Service {
     port: u16,

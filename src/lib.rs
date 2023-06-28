@@ -88,7 +88,7 @@
 //!     let handle = detach(async {
 //!         // ...
 //!     });
-//!     
+//!
 //!     drop(handle);
 //!     // task continues execution after being dropped.
 //! }
@@ -178,4 +178,4 @@ pub mod time;
 #[cfg(feature = "macros")]
 pub use osiris_macros::{main, test};
 #[doc(hidden)]
-pub mod __priv;
+pub mod _priv;

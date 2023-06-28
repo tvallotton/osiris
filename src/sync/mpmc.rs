@@ -120,15 +120,13 @@
 //! }
 //! ```
 
-use std::{
-    cell::RefCell,
-    collections::VecDeque,
-    error::Error,
-    fmt::{Debug, Display, Formatter},
-    future::poll_fn,
-    rc::Rc,
-    task::{Poll, Waker},
-};
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
+use std::future::poll_fn;
+use std::rc::Rc;
+use std::task::{Poll, Waker};
 
 /// The sending-half of osiris's asynchronous [`channel`] type.
 ///

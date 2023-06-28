@@ -31,6 +31,7 @@ impl Reactor {
     }
     /// submits all io-events to the kernel and waits for at least one completion event.
     pub fn submit_and_wait(&self) -> std::io::Result<()> {
+        println!("submit and wait");
         self.0.borrow_mut().submit_and_wait()?;
         Ok(())
     }
@@ -42,6 +43,10 @@ impl Reactor {
     /// wakes up any tasks listening for IO events.
     pub fn wake_tasks(&self) {
         self.0.borrow_mut().wake_tasks();
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.borrow_mut().wakers.len()
     }
 
     /// This function is used to poll the driver about a specific event.
@@ -70,5 +75,5 @@ impl Reactor {
 fn current() -> Reactor {
     const ERR_MSG: &str =
         "attempted to perform async I/O from the outside of an osiris runtime context.";
-    crate::runtime::current().expect(ERR_MSG).driver
+    crate::runtime::current().expect(ERR_MSG).reactor
 }

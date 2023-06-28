@@ -7,14 +7,17 @@ use std::io;
 use std::ops::ControlFlow;
 use std::ops::ControlFlow::*;
 use std::task::{Poll, Waker};
+use std::time::Duration;
 
+use crate::detach;
 use crate::runtime::Config;
+use crate::time::sleep;
 
 #[non_exhaustive]
 pub(crate) struct Driver {
     #[cfg(target_os = "linux")]
     /// the wakers for tasks listening for IO.
-    wakers: HashMap<u64, ControlFlow<cqueue::Entry, Waker>>,
+    pub(crate) wakers: HashMap<u64, ControlFlow<cqueue::Entry, Waker>>,
     /// this value corresponds to the last occupied id.
     /// This id will be stored in io-uring's `user_data` attribute
     event_id: u64,
