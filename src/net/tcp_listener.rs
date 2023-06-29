@@ -90,7 +90,7 @@ impl TcpListener {
     /// ```no_run
     /// use osiris::net::{SocketAddr, TcpListener};
     ///
-    /// #[osiris::main(scale = true)]
+    /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
     ///     let addrs = [
     ///         SocketAddr::from(([127, 0, 0, 1], 80)),
@@ -112,11 +112,46 @@ impl TcpListener {
         .await
     }
 
+    /// Accept a new incoming connection from this listener.
+    ///
+    /// This function will block the calling thread until a new TCP connection
+    /// is established. When established, the corresponding [`TcpStream`] and the
+    /// remote peer's address will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::net::TcpListener;
+    ///
+    /// #[osiris::main(scale = true)]
+    /// async fn main() -> std::io::Result<()> {
+    ///     let listener = TcpListener::bind("127.0.0.1:8080").await?;
+    ///     match listener.accept().await {
+    ///         Ok((_socket, addr)) => println!("new client: {addr:?}"),
+    ///         Err(e) => println!("couldn't get client: {e:?}"),
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn accept(&self) -> Result<(TcpStream, SocketAddr)> {
         let (socket, addr) = self.socket.accept().await?;
         Ok((TcpStream { socket }, addr))
     }
-
+    /// Closes the file descriptor. Calling this method is recommended
+    /// over letting the value be dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use osiris::net::{Shutdown, TcpListener};
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> std::io::Result<()> {
+    ///     let listener = TcpListener::bind("127.0.0.1:8090").await?;
+    ///     listener.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn close(self) -> Result<()> {
         self.socket.close().await
     }
@@ -127,6 +162,7 @@ fn reuseport() {
     crate::block_on(async {
         let _listener1 = TcpListener::bind("127.0.0.1:8080").await.unwrap();
         let _listener2 = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+        _listener1.close().await.unwrap();
     })
     .unwrap();
 }

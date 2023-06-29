@@ -3,8 +3,10 @@ use osiris::detach;
 use osiris::net::{TcpListener, TcpStream};
 use osiris::task::{yield_now, JoinHandle};
 use std::io::Result;
+use std::mem::transmute;
 
 async fn handle_client(stream: TcpStream) -> Result<()> {
+    println!("{:?}", std::thread::current().id());
     let buf = vec![0; 1048];
     let (n, buf) = stream.read(buf).await;
     let buf = buf.slice(..n?);
@@ -14,7 +16,6 @@ async fn handle_client(stream: TcpStream) -> Result<()> {
 
 #[osiris::main(scale = true)]
 async fn main() -> Result<()> {
-    dbg!(std::thread::current().id());
     let listener = TcpListener::bind("127.0.0.1:8080").await?;
 
     // run server
@@ -25,16 +26,15 @@ async fn main() -> Result<()> {
         }
     });
 
-    spawn_clients(100).await;
-
+    spawn_clients(1000).await;
     Ok(())
 }
 
 fn spawn_clients(n: u32) -> JoinHandle<()> {
     detach(async move {
         let mut clients = vec![];
-        for _ in 0..n {
-            let client = detach(run_client());
+        for i in 0..n {
+            let client = detach(run_client(i));
             clients.push(client);
             yield_now().await;
         }
@@ -44,7 +44,7 @@ fn spawn_clients(n: u32) -> JoinHandle<()> {
     })
 }
 
-async fn run_client() {
+async fn run_client(id: u32) {
     let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
     let msg = format!("the code is: {}", fastrand::u128(..));
     stream.write_all(msg.clone().into_bytes()).await.0.unwrap();
@@ -53,4 +53,5 @@ async fn run_client() {
     let (n, buf) = stream.read(buf).await;
     let buf = buf.slice(0..n.unwrap());
     assert_eq!(std::str::from_utf8(&buf).unwrap(), msg);
+    // dbg!(id);
 }

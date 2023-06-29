@@ -17,7 +17,7 @@ pub trait IntoScale: sealed::Sealed {
 impl IntoScale for bool {
     fn scale(self) -> usize {
         if self {
-            affinity::get_core_num()
+            core_affinity::get_core_ids().unwrap_or(vec![]).len().max(1)
         } else {
             1
         }
@@ -59,12 +59,15 @@ fn no_scale_restart<T: Termination>(main: fn() -> io::Result<T>) -> ExitCode {
 }
 
 fn scaled_no_restart<T: Termination>(scale: usize, main: fn() -> io::Result<T>) -> ExitCode {
-    let n = affinity::get_core_num();
+    let cores = &core_affinity::get_core_ids().unwrap_or(vec![]);
+    let n = cores.len().max(1);
     std::thread::scope(|s| {
-        for id in 0..scale {
-            let id = id % n;
+        for thread in 0..scale {
             s.spawn(move || {
-                affinity::set_thread_affinity([id]).ok();
+                let core_id = cores.get(thread % n);
+                if let Some(core_id) = core_id {
+                    core_affinity::set_for_current(*core_id);
+                }
                 main().unwrap().report();
             });
         }
@@ -76,23 +79,27 @@ fn scaled_and_restart(
     scale: usize,
     main: impl Fn() -> ExitCode + Copy + Clone + Sync + Send + UnwindSafe,
 ) -> ExitCode {
+    let cores = &core_affinity::get_core_ids().unwrap_or(vec![]);
     std::thread::scope(|s| {
-        let n = affinity::get_core_num();
         let (tx, rx) = std::sync::mpsc::channel();
 
-        for id in 0..scale {
+        let n = cores.len().min(1);
+
+        for thread in 0..scale {
             let tx = tx.clone();
+            let core_id = cores.get(thread % n);
             s.spawn(move || {
-                let id = id % n;
-                affinity::set_thread_affinity([id]).ok();
-                tx.send((id, std::panic::catch_unwind(main)))
+                if let Some(core_id) = core_id {
+                    core_affinity::set_for_current(*core_id);
+                }
+                tx.send((thread, std::panic::catch_unwind(main)))
             });
         }
 
         let mut exit_count = 0;
 
         while exit_count < scale {
-            let Ok((id, res)) = rx.recv() else {
+            let Ok((thread, res)) = rx.recv() else {
                 unreachable!();
             };
             let Err(_) = res else {
@@ -101,11 +108,14 @@ fn scaled_and_restart(
             };
             // we restart the panicked dead replica
             let tx = tx.clone();
+            let core_id = cores.get(thread % n);
 
             s.spawn(move || {
-                eprintln!("osiris: restarting thread #{id}");
-                affinity::set_thread_affinity([id]).ok();
-                tx.send((id, std::panic::catch_unwind(main)))
+                eprintln!("osiris: restarting thread #{thread}");
+                if let Some(core_id) = core_id {
+                    core_affinity::set_for_current(*core_id);
+                }
+                tx.send((thread, std::panic::catch_unwind(main)))
             });
         }
         ExitCode::SUCCESS

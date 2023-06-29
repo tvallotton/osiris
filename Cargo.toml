@@ -13,7 +13,8 @@ macros = ["osiris-macros"]
 debug = true
 
 [dependencies]
-affinity = "0.1.2"
+
+core_affinity = "0.8.0"
 dns-protocol = "0.1.1"
 fastrand = "1.9.0"
 libc = "0.2.138"
@@ -21,7 +22,7 @@ memchr = "2.5.0"
 num_cpus = "1.15.0"
 osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }
 pin-project-lite = "0.2.9"
-tokio = { version = "1.28.2", features = ["macros", "full"] }
+
 
 [target.'cfg(target_os = "linux")']
 rustflags = ["-C", "link-arg=-Wl,-dynamic-linker=/usr/lib/ld-linux-aarch64.so.1"]
