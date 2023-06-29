@@ -12,8 +12,9 @@ async fn handle_client(stream: TcpStream) -> Result<()> {
     stream.close().await
 }
 
-#[osiris::main]
+#[osiris::main(scale = true)]
 async fn main() -> Result<()> {
+    dbg!(std::thread::current().id());
     let listener = TcpListener::bind("127.0.0.1:8080").await?;
 
     // run server
