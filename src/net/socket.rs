@@ -2,6 +2,7 @@
 use std::io::{Error, Result};
 use std::mem::{forget, size_of_val};
 use std::net::{Shutdown, SocketAddr};
+use std::os::fd::{FromRawFd, IntoRawFd};
 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
@@ -122,6 +123,19 @@ impl Socket {
         let fd = self.fd;
         forget(self);
         op::close(fd).await
+    }
+}
+
+impl FromRawFd for Socket {
+    unsafe fn from_raw_fd(fd: std::os::fd::RawFd) -> Self {
+        Self { fd }
+    }
+}
+impl IntoRawFd for Socket {
+    fn into_raw_fd(self) -> std::os::fd::RawFd {
+        let fd = self.fd;
+        forget(self);
+        fd
     }
 }
 

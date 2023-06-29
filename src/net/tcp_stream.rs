@@ -1,5 +1,6 @@
 use std::io::{Error, ErrorKind, Result};
 use std::net::Shutdown;
+use std::os::fd::{FromRawFd, IntoRawFd};
 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::reactor::op;
@@ -244,5 +245,18 @@ impl TcpStream {
     /// ```
     pub async fn close(self) -> Result<()> {
         self.socket.close().await
+    }
+}
+
+impl FromRawFd for TcpStream {
+    unsafe fn from_raw_fd(fd: std::os::fd::RawFd) -> Self {
+        TcpStream {
+            socket: Socket::from_raw_fd(fd),
+        }
+    }
+}
+impl IntoRawFd for TcpStream {
+    fn into_raw_fd(self) -> std::os::fd::RawFd {
+        self.socket.into_raw_fd()
     }
 }

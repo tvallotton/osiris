@@ -2,6 +2,7 @@ use crate::net::socket::{Domain, Protocol, Type};
 use crate::net::ToSocketAddrs;
 use std::io::Result;
 use std::net::SocketAddr;
+use std::os::fd::{FromRawFd, IntoRawFd};
 
 use super::socket::Socket;
 use super::to_socket_addr::try_until_success;
@@ -154,6 +155,65 @@ impl TcpListener {
     /// ```
     pub async fn close(self) -> Result<()> {
         self.socket.close().await
+    }
+
+    /// Turns a [`osiris::net::TcpListener`](TcpListener) into a [`std::net::TcpListener`].
+    ///
+    /// It is unspecified whether the returned [`std::net::TcpListener`] will be
+    /// set as nonblocking or not. Whichever behavior will be used should be set
+    /// after the operation.
+    ///
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::error::Error;
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> Result<(), Box<dyn Error>> {
+    ///     let osiris_listener = osiris::net::TcpListener::bind("127.0.0.1:0").await?;
+    ///     let std_listener = osiris_listener.into_std();
+    ///     std_listener.set_nonblocking(false)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn into_std(self) -> std::net::TcpListener {
+        let fd = self.into_raw_fd();
+        unsafe { std::net::TcpListener::from_raw_fd(fd) }
+    }
+
+    /// Creates a new `TcpListener` from a `std::net::TcpListener`.
+    ///
+    /// This function is intended to be used to wrap a TCP listener from the
+    /// standard library in the Osiris equivalent.
+    ///
+    /// This API can be used with `socket2` or `libc::socket` to customize
+    /// a socket before it is used. Alternatively, the
+    /// [`from_raw_fd`](FromRawFd::from_raw_fd) method can also be used
+    /// to create an osiris listener.
+    pub fn from_std(listener: std::net::TcpListener) -> Self {
+        let fd = listener.into_raw_fd();
+        let socket = Socket { fd };
+        Self { socket }
+    }
+
+    /// Returns the local address that this listener is bound to.
+    pub fn local_addr(&self) -> Result<()> {
+        todo!()
+    }
+}
+
+impl FromRawFd for TcpListener {
+    unsafe fn from_raw_fd(fd: std::os::fd::RawFd) -> Self {
+        TcpListener {
+            socket: Socket::from_raw_fd(fd),
+        }
+    }
+}
+
+impl IntoRawFd for TcpListener {
+    fn into_raw_fd(self) -> std::os::fd::RawFd {
+        self.socket.into_raw_fd()
     }
 }
 
