@@ -165,8 +165,6 @@ impl Runtime {
             executor.poll(config.event_interval, task_id);
 
             reactor.wake_tasks();
-            println!("reactor len: {}", reactor.len());
-            println!("executor len: {}", executor.queue.borrow_mut().len());
             if executor.is_idle() && !executor.main_handle.get() {
                 reactor.submit_and_wait()?;
             } else {

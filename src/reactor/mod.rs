@@ -31,7 +31,6 @@ impl Reactor {
     }
     /// submits all io-events to the kernel and waits for at least one completion event.
     pub fn submit_and_wait(&self) -> std::io::Result<()> {
-        println!("submit and wait");
         self.0.borrow_mut().submit_and_wait()?;
         Ok(())
     }

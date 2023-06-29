@@ -1,8 +1,11 @@
 use crate::net::socket::{Domain, Protocol, Type};
 use crate::net::ToSocketAddrs;
-use std::{io::Result, net::SocketAddr};
+use std::io::Result;
+use std::net::SocketAddr;
 
-use super::{socket::Socket, to_socket_addr::try_until_success, TcpStream};
+use super::socket::Socket;
+use super::to_socket_addr::try_until_success;
+use super::TcpStream;
 
 /// A TCP socket server, listening for connections.
 ///
