@@ -166,3 +166,43 @@ fn reuseport() {
     })
     .unwrap();
 }
+
+#[test]
+fn accept() {
+    crate::block_on(async {
+        let request = [0u8; 32].map(|_| fastrand::u8(..)).to_vec();
+        let response = [0u8; 32].map(|_| fastrand::u8(..)).to_vec();
+        crate::detach({
+            let request = request.clone();
+            let response = response.clone();
+            async move {
+                let listener = TcpListener::bind("127.0.0.1:8083").await.unwrap();
+                let (stream, _) = listener.accept().await.unwrap();
+                let buf = vec![0u8; 32];
+                let (n, buf) = stream.read(buf).await;
+                assert_eq!(&buf[..n.unwrap()], &request.clone()[..]);
+                stream.write(response).await.0.unwrap();
+                stream.shutdown(std::net::Shutdown::Write).await.unwrap();
+                stream.shutdown(std::net::Shutdown::Both).await.unwrap();
+                stream.close().await.unwrap();
+                listener.close().await.unwrap();
+            }
+        });
+
+        crate::detach({
+            let request = request.clone();
+            let response = response.clone();
+            async move {
+                let stream = TcpStream::connect("127.0.0.1:8083").await.unwrap();
+                stream.write_all(request).await.0.unwrap();
+                let buf = vec![0u8; 32];
+                let (n, buf) = stream.read(buf).await;
+                assert_eq!(&buf[..n.unwrap()], &response[..]);
+                stream.shutdown(std::net::Shutdown::Read).await.unwrap();
+                stream.close().await.unwrap();
+            }
+        })
+        .await
+    })
+    .unwrap();
+}

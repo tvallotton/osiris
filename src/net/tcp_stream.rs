@@ -246,8 +246,3 @@ impl TcpStream {
         self.socket.close().await
     }
 }
-
-async fn foo() {
-    let stream = TcpStream::connect("asd").await.unwrap();
-    stream.read(vec![]).await.0.unwrap();
-}

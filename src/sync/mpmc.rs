@@ -648,10 +648,55 @@ impl Error for RecvError {}
 impl<T> Error for SendError<T> {}
 
 #[test]
-fn mpmc_stress_test() {
+fn mpmc_stress_test_rendezvous() {
     crate::block_on(async {
         const N: usize = 500;
         let (s, r) = channel(0);
+
+        let mut tasks = vec![];
+        for _ in 0..N {
+            let s = s.clone();
+            let r = r.clone();
+            let send = crate::spawn(async move {
+                while fastrand::f32() < 0.5 {
+                    crate::task::yield_now().await;
+                }
+                s.send(1).await.ok();
+            });
+
+            let recv = crate::spawn(async move {
+                while fastrand::f32() < 0.5 {
+                    crate::task::yield_now().await;
+                }
+                r.recv().await.ok();
+            });
+            tasks.push((send, recv));
+        }
+        drop(s);
+        drop(r);
+
+        for i in 0..N {
+            // cancel a pair of tasks at random
+            if fastrand::f32() < 0.01 && i < tasks.len() {
+                tasks.remove(i);
+                crate::task::yield_now().await;
+            } else if i >= tasks.len() {
+                break;
+            }
+        }
+        for (send, recv) in tasks {
+            send.await;
+            recv.await;
+        }
+    })
+    .unwrap();
+}
+
+#[test]
+fn mpmc_stress_test_bound() {
+    crate::block_on(async {
+        const N: usize = 500;
+        let (s, r) = channel(8);
 
         let mut tasks = vec![];
         for _ in 0..N {
