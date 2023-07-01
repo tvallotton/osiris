@@ -1,3 +1,64 @@
+//! The Osiris runtime.
+//!
+//! Unlike other Rust programs, asynchronous applications require runtime
+//! support. In particular, the following runtime services are necessary:
+//!
+//! * An **I/O event loop**, called the reactor, which reacts to I/O events
+//!  and dispatches them events to tasks that depend on them.
+//! * A **scheduler** to execute [tasks] that use these I/O resources.
+//!
+//! Orisirs's [`Runtime`] bundles these two services as a single type, allowing
+//! them to be started, shut down, and configured together. However, often it is
+//! not required to configure a [`Runtime`] manually, and a user may just use the
+//! [`tokio::main`] attribute macro or the [`block_on`] function which create
+//! a runtime under the hood.
+//!
+//! # Usage
+//! When no fine tuning is required, the [`osiris::main`] attribute macro can be
+//! used.
+//!
+//! ```no_run
+//! use osiris::net::TcpListener;
+//! use osiris::detach;
+//! use osiris::buf::IoBuf;
+//!
+//! #[osiris::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let listener = TcpListener::bind("127.0.0.1:8000").await?;
+//!
+//!     loop {
+//!         let (mut socket, _) = listener.accept().await?;
+//!
+//!         detach(async move {
+//!             let mut buf = vec![0; 1024];
+//!
+//!             // In a loop, read data from the socket and write the data back.
+//!             loop {
+//!                 let (n, _buf) = socket.read(buf).await;
+//!                 buf = _buf;
+//!                 
+//!                 let n = match n {
+//!                     // socket closed
+//!                     Ok(0) => return,
+//!                     Ok(n) => n,
+//!                     Err(e) => {
+//!                         println!("failed to read from socket; err = {:?}", e);
+//!                         return;
+//!                     }
+//!                 };
+//!                 // Write the data back
+//!                 let (res, _buf) = socket.write_all(buf.slice(..n)).await;
+//!                 buf = _buf.into_inner();
+//!                 if let Err(e) = res {
+//!                     println!("failed to write to socket; err = {:?}", e);
+//!                     return;
+//!                 }
+//!             }
+//!         });
+//!     }
+//! }
+//! ```
+//!
 use crate::reactor::Reactor;
 use crate::runtime::waker::main_waker;
 use crate::task::JoinHandle;

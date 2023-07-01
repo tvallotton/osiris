@@ -9,6 +9,7 @@ use io_uring::types::FsyncFlags;
 use libc::AT_FDCWD;
 use std::io::{self, Error, Result};
 use std::mem::{forget, MaybeUninit};
+use std::os::fd::{FromRawFd, IntoRawFd};
 use std::path::Path;
 
 use super::{cstr, OpenOptions};
@@ -517,4 +518,18 @@ async fn _remove_file(path: &Path) -> Result<()> {
     let path = cstr(path)?;
     op::unlink_at(path).await?;
     Ok(())
+}
+
+impl IntoRawFd for File {
+    fn into_raw_fd(self) -> std::os::fd::RawFd {
+        let fd = self.fd;
+        forget(self);
+        fd
+    }
+}
+
+impl FromRawFd for File {
+    unsafe fn from_raw_fd(fd: std::os::fd::RawFd) -> Self {
+        File { fd }
+    }
 }

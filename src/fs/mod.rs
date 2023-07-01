@@ -1,3 +1,14 @@
+//! Asynchronous file and standard stream adaptation.
+//!
+//! This module contains utility methods and adapter types for input/output to
+//! files or standard streams (`Stdin`, `Stdout`, `Stderr`), and
+//! filesystem manipulation, for use within (and only within) an Osiris runtime.
+//!
+//! Unlike nonblocking runtimes, which generally spawn a threadpool to perform
+//! blocking file io on, Osiris performs true async file io. This implies that
+//! the buffers used by osiris files need to be owned, and cannot work with
+//! references.
+//!
 use std::ffi::CString;
 use std::io::Result;
 use std::os::unix::prelude::OsStrExt;
