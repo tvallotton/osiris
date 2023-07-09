@@ -171,8 +171,7 @@ pub async fn accept(fd: i32) -> Result<(i32, SocketAddr)> {
     let socket = cqe?.result();
     // TODO: fix the parsinf of SocketAddr
     // let addr = "127.0.0.1:8000".parse().unwrap();
-    let addr = to_std_socket_addr(&addr)
-        .ok_or_else(|| Error::new(std::io::ErrorKind::Other, "unsupported IP version"))?;
+    let addr = to_std_socket_addr(&addr)?;
     Ok((socket, addr))
 }
 

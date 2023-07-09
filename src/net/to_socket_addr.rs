@@ -1,10 +1,11 @@
+#![allow(unused_imports)]
+#[cfg(io_uring)]
+use crate::net::dns;
 use std::future::{ready, Future, Ready};
 use std::io::{Error, ErrorKind, Result};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::pin::Pin;
 use std::vec;
-
-use crate::net::dns;
 
 use super::utils::invalid_input;
 
@@ -64,6 +65,10 @@ impl<'a> ToSocketAddrs for (&'a str, u16) {
     type Iter = vec::IntoIter<SocketAddr>;
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
     fn to_socket_addrs(self) -> Self::Fut {
+        // TODO: make non io-uring async
+        #[cfg(not(io_uring))]
+        return Box::pin(async move { std::net::ToSocketAddrs::to_socket_addrs(&self) });
+        #[cfg(io_uring)]
         Box::pin(async move {
             let (host, port) = self;
             let res = dns::lookup(host)
@@ -98,6 +103,10 @@ impl<'a> ToSocketAddrs for &'a str {
     type Iter = vec::IntoIter<SocketAddr>;
     type Fut = Pin<Box<dyn Future<Output = Result<Self::Iter>> + 'a>>;
     fn to_socket_addrs(self) -> Self::Fut {
+        // TODO: make non io-uring async
+        #[cfg(not(io_uring))]
+        return Box::pin(async move { std::net::ToSocketAddrs::to_socket_addrs(&self) });
+        #[cfg(io_uring)]
         Box::pin(async {
             let (host, port) = self.split_once(':').ok_or_else(|| {
                 Error::new(

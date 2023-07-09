@@ -8,10 +8,10 @@ use ::{
 };
 
 #[cfg(target_os = "linux")]
-pub(crate) use self::iouring::{op, Driver};
+pub(crate) use iouring::{op, Driver};
 
-#[cfg(target_os = "macos")]
-use kqueue::Driver;
+#[cfg(kqueue)]
+pub(crate) use kqueue::{op, Driver};
 
 use crate::runtime::Config;
 

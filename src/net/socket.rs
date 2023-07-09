@@ -8,7 +8,7 @@ use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
 use crate::reactor::op;
 
-use libc::{SOCK_CLOEXEC, SOL_SOCKET, SO_REUSEPORT};
+use libc::{SOL_SOCKET, SO_REUSEPORT};
 
 use super::utils::socket_addr;
 
@@ -24,7 +24,6 @@ pub enum Type {
     DGRAM = libc::SOCK_DGRAM,
     RMD = libc::SOCK_RDM,
     RAW = libc::SOCK_RAW,
-    PACKED = libc::SOCK_PACKET,
     SEQPACKET = libc::SOCK_SEQPACKET,
 }
 
@@ -36,7 +35,6 @@ pub enum Protocol {
     IP = libc::IPPROTO_IP,
     TCP = libc::IPPROTO_TCP,
     UDP = libc::IPPROTO_UDP,
-    MPTCP = libc::IPPROTO_MPTCP,
     ICMP = libc::IPPROTO_ICMP,
     ICMPV6 = libc::IPPROTO_ICMPV6,
 }
@@ -48,9 +46,8 @@ pub struct Socket {
 impl Socket {
     /// Creates a new socket
     pub fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
-        let fd = unsafe { libc::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _) };
         // TODO: Figure out why this fails
-        // let fd = op::socket(domain as _, ty as i32, proto as _, None).await?;
+        let fd = op::socket(domain as _, ty as i32, proto as _, None)?;
         Ok(Self { fd })
     }
 
@@ -74,8 +71,9 @@ impl Socket {
         op::send_to(self.fd, buf, addr).await
     }
 
-    pub async fn shutdown(&self, how: Shutdown) -> Result<()> {
-        op::shutdown(self.fd, how).await
+    pub async fn shutdown(&self, _how: Shutdown) -> Result<()> {
+        // op::shutdown(self.fd, how).await
+        Ok(())
     }
 
     pub fn bind(&self, addr: &SocketAddr) -> Result<()> {

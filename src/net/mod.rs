@@ -1,3 +1,4 @@
+#[cfg(io_uring)]
 mod dns;
 mod socket;
 mod tcp_listener;

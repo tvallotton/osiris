@@ -45,8 +45,27 @@ where
     loop {
         wait(kevent).await?;
         match f() {
-            Err(err) if err.raw_os_error() == Some(libc::EAGAIN) => continue,
+            Err(err) => {
+                let Some(libc::EAGAIN | libc::EINPROGRESS) = err.raw_os_error() else {
+                    return Err(err);
+                };
+            }
             result => return result,
         }
+    }
+}
+
+pub async fn submit_once<F>(kevent: libc::kevent, f: F) -> io::Result<()>
+where
+    F: FnOnce() -> io::Result<i32>,
+{
+    match f() {
+        Err(err) => {
+            let Some(libc::EAGAIN | libc::EINPROGRESS) = err.raw_os_error() else {
+                    return Err(err);
+                };
+            wait(kevent).await
+        }
+        _ => Ok(()),
     }
 }

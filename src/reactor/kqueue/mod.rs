@@ -10,7 +10,7 @@ use crate::runtime::Config;
 
 use self::event::id;
 mod event;
-mod op;
+pub mod op;
 
 /// KQueue driver
 pub(crate) struct Driver {
@@ -47,7 +47,7 @@ impl Driver {
     }
 
     pub fn submit_and_wait(&mut self) -> io::Result<()> {
-        println!("submitting and wait");
+        // println!("submitting and wait");
         self.submit(&libc::timespec {
             tv_nsec: 0,
             tv_sec: 60,
@@ -56,19 +56,18 @@ impl Driver {
 
     #[rustfmt::skip]
     fn submit(&mut self, timeout: *const libc::timespec) -> io::Result<()> {
-        
         let kq         = self.fd.as_raw_fd();
         let changelist = self.queue.as_ptr();
         let eventlist  = self.queue.as_mut_ptr();
         let nevents    = self.queue.capacity() as i32;
         let nchanges   = self.queue.len() as i32;
-        let len        = unsafe { 
-            libc::kevent(kq, changelist, nchanges, eventlist, nevents, timeout) 
+        let len        = unsafe {
+            libc::kevent(kq, changelist, nchanges, eventlist, nevents, timeout)
         };
-        if dbg!(len) < 0 {
+        if len < 0 {
              Err(Error::last_os_error())
         } else {
-            unsafe{ self.queue.set_len(len as usize) }; 
+            unsafe{ self.queue.set_len(len as usize) };
             Ok(())
         }
     }
@@ -76,9 +75,6 @@ impl Driver {
     /// wakes up any tasks listening for IO events.
     pub fn wake_tasks(&mut self) {
         for event in &self.queue {
-            dbg!(event.filter);
-            dbg!(event.flags);
-            dbg!(event.ident);
             let Some(waker) = self.wakers.remove(&id(*event)) else {
                 continue;
             };

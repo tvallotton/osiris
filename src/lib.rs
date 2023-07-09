@@ -167,13 +167,11 @@ pub mod buf;
 #[cfg(target_os = "linux")]
 pub mod fs;
 pub mod future;
-#[cfg(target_os = "linux")]
 pub mod net;
 mod reactor;
 pub mod runtime;
 pub mod sync;
 pub mod task;
-#[cfg(target_os = "linux")]
 pub mod time;
 #[cfg(feature = "macros")]
 pub use osiris_macros::{main, test};

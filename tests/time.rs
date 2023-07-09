@@ -1,8 +1,8 @@
-#[cfg(target_os = "linux")]
-use osiris::{block_on, time::sleep};
-#[cfg(target_os = "linux")]
+use osiris::block_on;
+use osiris::time::sleep;
+
 use std::time::Duration;
-#[cfg(target_os = "linux")]
+
 #[test]
 fn timer_smoke_test() {
     block_on(async {

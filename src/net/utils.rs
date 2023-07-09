@@ -1,8 +1,8 @@
+#[cfg(io_uring)]
 use crate::fs::File;
 use libc::{AF_INET, AF_INET6};
 use memchr::memchr;
 use std::io::{Error, Result};
-use std::mem::take;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::ptr::addr_of;
 
@@ -107,21 +107,21 @@ pub(crate) fn socket_addr(addr: &SocketAddr) -> (SocketAddrCRepr, libc::socklen_
 
 /// Returns this address as a `SocketAddr` if it is in the `AF_INET` (IPv4)
 /// or `AF_INET6` (IPv6) family, otherwise returns `None`.
-pub fn to_std_socket_addr(storage: &libc::sockaddr) -> Option<SocketAddr> {
+pub fn to_std_socket_addr(storage: &libc::sockaddr) -> Result<SocketAddr> {
     if storage.sa_family == AF_INET as _ {
         // SAFETY: if the `ss_family` field is `AF_INET` then storage must
         // be a `sockaddr_in`.
         let addr: &libc::sockaddr_in = unsafe { &*(addr_of!(storage).cast()) };
         let port = u16::from_be(addr.sin_port);
         let ip = Ipv4Addr::from(addr.sin_addr.s_addr.to_ne_bytes());
-        Some(SocketAddr::V4(SocketAddrV4::new(ip, port)))
+        Ok(SocketAddr::V4(SocketAddrV4::new(ip, port)))
     } else if storage.sa_family == AF_INET6 as _ {
         // SAFETY: if the `ss_family` field is `AF_INET6` then storage must
         // be a `sockaddr_in6`.
         let addr: &libc::sockaddr_in6 = unsafe { &*(addr_of!(storage).cast()) };
         let ip = Ipv6Addr::from(addr.sin6_addr.s6_addr);
         let port = u16::from_be(addr.sin6_port);
-        Some(SocketAddr::V6(SocketAddrV6::new(
+        Ok(SocketAddr::V6(SocketAddrV6::new(
             ip,
             port,
             addr.sin6_flowinfo,
@@ -129,7 +129,10 @@ pub fn to_std_socket_addr(storage: &libc::sockaddr) -> Option<SocketAddr> {
             addr.sin6_scope_id,
         )))
     } else {
-        None
+        Err(Error::new(
+            std::io::ErrorKind::Other,
+            "unsupported IP version",
+        ))
     }
 }
 
@@ -143,7 +146,7 @@ pub fn remove_comment(line: &[u8]) -> &[u8] {
 pub fn is_whitespace(c: &u8) -> bool {
     matches!(c, b'\t' | b'\n' | b'\x0C' | b'\r' | b' ')
 }
-
+#[cfg(io_uring)]
 pub async fn lines(path: &str, capacity: usize) -> Result<LineReader> {
     let file = File::open(path).await?;
 
@@ -156,6 +159,7 @@ pub async fn lines(path: &str, capacity: usize) -> Result<LineReader> {
     })
 }
 // TODO: refactor this to use file position?
+#[cfg(io_uring)]
 pub struct LineReader {
     file: File,
     buf: Vec<u8>,
@@ -163,7 +167,7 @@ pub struct LineReader {
     char: usize,
     end: usize,
 }
-
+#[cfg(io_uring)]
 impl LineReader {
     fn try_read_line(&mut self) -> Option<*const [u8]> {
         let buf = self.buf.get(self.char..)?;

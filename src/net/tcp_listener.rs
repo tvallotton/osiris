@@ -220,8 +220,8 @@ impl IntoRawFd for TcpListener {
 #[test]
 fn reuseport() {
     crate::block_on(async {
-        let _listener1 = TcpListener::bind("127.0.0.1:8080").await.unwrap();
-        let _listener2 = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+        let _listener1 = TcpListener::bind("127.0.0.1:8081").await.unwrap();
+        let _listener2 = TcpListener::bind("127.0.0.1:8081").await.unwrap();
         _listener1.close().await.unwrap();
     })
     .unwrap();
@@ -236,15 +236,23 @@ fn accept() {
             let request = request.clone();
             let response = response.clone();
             async move {
+                dbg!("bidning");
                 let listener = TcpListener::bind("127.0.0.1:8083").await.unwrap();
+                dbg!("accepting");
                 let (stream, _) = listener.accept().await.unwrap();
+                dbg!("accepted");
                 let buf = vec![0u8; 32];
                 let (n, buf) = stream.read(buf).await;
+                dbg!("server: read");
                 assert_eq!(&buf[..n.unwrap()], &request.clone()[..]);
                 stream.write(response).await.0.unwrap();
+                dbg!("server: wrote");
                 stream.shutdown(std::net::Shutdown::Write).await.unwrap();
+                dbg!("server: shutdown write");
                 stream.shutdown(std::net::Shutdown::Both).await.unwrap();
+                dbg!("server: shutdown read");
                 stream.close().await.unwrap();
+                dbg!("server: close stream");
                 listener.close().await.unwrap();
             }
         });
@@ -253,12 +261,18 @@ fn accept() {
             let request = request.clone();
             let response = response.clone();
             async move {
+                dbg!("connecting");
                 let stream = TcpStream::connect("127.0.0.1:8083").await.unwrap();
+                dbg!("connected");
                 stream.write_all(request).await.0.unwrap();
+                dbg!("wrote");
                 let buf = vec![0u8; 32];
+                dbg!("read");
                 let (n, buf) = stream.read(buf).await;
                 assert_eq!(&buf[..n.unwrap()], &response[..]);
+                dbg!("shutdown");
                 stream.shutdown(std::net::Shutdown::Read).await.unwrap();
+                dbg!("close");
                 stream.close().await.unwrap();
             }
         })
