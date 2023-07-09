@@ -1,8 +1,6 @@
-use std::{
-    cell::{RefCell, RefMut},
-    io,
-    rc::Rc,
-};
+use std::cell::{RefCell, RefMut};
+use std::io;
+use std::rc::Rc;
 #[cfg(target_os = "linux")]
 use ::{
     io_uring::{cqueue, squeue::Entry},

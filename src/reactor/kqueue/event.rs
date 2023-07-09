@@ -1,32 +1,52 @@
-use std::{future::Future, io};
+use std::future::poll_fn;
+use std::io::{self};
+use std::task::Poll;
 
-use crate::reactor::{self, current};
+use crate::reactor::{self};
 
-struct Event<F> {
-    submitted: bool,
-    kevent: libc::kevent,
-    f: F,
+pub(crate) fn id(event: libc::kevent) -> (usize, i16) {
+    (event.ident, event.filter)
 }
 
-impl<F> Future for Event<F>
-where
-    F: Fn() -> io::Result<i32>,
-{
-    type Output = i32;
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        if !self.submitted {
-            let reactor = reactor::current();
-            let mut driver = reactor.driver();
-            driver.push(kevent);
-        }
+pub struct Guard(libc::kevent);
+impl Drop for Guard {
+    fn drop(&mut self) {
+        let reactor = reactor::current();
+        reactor.driver().wakers.remove(&id(self.0));
+        // we don't delete the event
+        // from the queue because some
+        // other task may have also submitted
+        // and event, and they would end up
+        // waiting forever
     }
 }
 
-pub fn submit<F>(kevent: libc::kevent, f: F)
+pub async fn wait(kevent: libc::kevent) -> io::Result<()> {
+    let mut submitted = false;
+    let mut guard = None;
+    poll_fn(|cx| {
+        if submitted {
+            return Poll::Ready(Ok(()));
+        }
+        submitted = true;
+        reactor::current()
+            .driver()
+            .push(kevent, cx.waker().clone())?;
+        guard = Some(Guard(kevent));
+        Poll::Pending
+    })
+    .await
+}
+
+pub async fn submit<F, T>(kevent: libc::kevent, mut f: F) -> io::Result<T>
 where
-    F: Fn() -> io::Result<i32>,
+    F: FnMut() -> io::Result<T>,
 {
+    loop {
+        wait(kevent).await?;
+        match f() {
+            Err(err) if err.raw_os_error() == Some(libc::EAGAIN) => continue,
+            result => return result,
+        }
+    }
 }

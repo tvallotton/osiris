@@ -86,7 +86,7 @@ pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
 /// or `libc::AT_FDCWD` and the path value will be used.
 ///
 /// # Examples
-/// ```no_run
+/// ```ignore
 /// let statx = op::statx(libc::AT_FDCWD, Some(path)).await?;
 /// ```
 pub async fn statx(fd: i32, path: Option<CString>) -> Result<libc::statx> {

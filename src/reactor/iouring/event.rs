@@ -1,7 +1,6 @@
 #![allow(warnings)]
-use crate::detach;
-use crate::reactor;
 use crate::runtime::current;
+use crate::{detach, reactor};
 #[cfg(target_os = "linux")]
 use io_uring::cqueue;
 use io_uring::opcode::AsyncCancel;
