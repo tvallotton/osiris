@@ -1,8 +1,5 @@
 use super::cstr;
-use crate::reactor::submit;
-use io_uring::opcode::{MkDirAt, UnlinkAt};
-use io_uring::types::Fd;
-use libc::AT_FDCWD;
+use crate::reactor::op::{self, unlink_at};
 use std::io::Result;
 use std::path::Path;
 
@@ -27,14 +24,8 @@ use std::path::Path;
 /// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 pub async fn create_dir(path: impl AsRef<Path>) -> Result<()> {
-    _create_dir(path.as_ref()).await
-}
-
-async fn _create_dir(path: &Path) -> Result<()> {
-    let path = cstr(path)?;
-    let sqe = MkDirAt::new(Fd(libc::AT_FDCWD), path.as_ptr()).build();
-    let (cqe, _) = unsafe { submit(sqe, path).await };
-    cqe.map(|_| ())
+    let path = cstr(path.as_ref())?;
+    op::mkdir_at(path).await
 }
 
 /// Removes an empty directory.
@@ -65,15 +56,6 @@ async fn _create_dir(path: &Path) -> Result<()> {
 /// # std::io::Result::Ok(()) }).unwrap();
 /// ```
 pub async fn remove_dir(path: impl AsRef<Path>) -> Result<()> {
-    _remove_dir(path.as_ref()).await
-}
-
-async fn _remove_dir(path: &Path) -> Result<()> {
-    let path = cstr(path)?;
-    let sqe = UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr())
-        .flags(libc::AT_REMOVEDIR)
-        .build();
-    // Safety: the path is protected by submit
-    let (cqe, _) = unsafe { submit(sqe, path).await };
-    cqe.map(|_| ())
+    let path = cstr(path.as_ref())?;
+    unlink_at(path, libc::AT_REMOVEDIR).await
 }

@@ -1,10 +1,8 @@
 use super::cstr;
-use crate::reactor::submit;
-use io_uring::opcode::Statx;
-use io_uring::types::Fd;
+use crate::reactor::op;
 use libc::{statx, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
 use std::io::{self, Result};
-use std::mem::MaybeUninit;
+
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
@@ -14,18 +12,7 @@ pub async fn metadata(path: impl AsRef<Path>) -> Result<Metadata> {
 
 async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
     let path = cstr(path)?;
-    let mut statxbuf = Box::new(MaybeUninit::<statx>::uninit());
-    let sqe = Statx::new(
-        Fd(libc::AT_FDCWD),
-        path.as_ptr().cast(),
-        statxbuf.as_mut_ptr().cast(),
-    )
-    .mask(libc::STATX_ALL as _)
-    .build();
-    let (cqe, (statx, _)) = unsafe { submit(sqe, (statxbuf, path)).await };
-    cqe?;
-    // Safety: initialized by io-uring
-    let statx = unsafe { MaybeUninit::assume_init(*statx) };
+    let statx = op::statx(libc::AT_FDCWD, Some(path)).await?;
     Ok(Metadata { statx })
 }
 

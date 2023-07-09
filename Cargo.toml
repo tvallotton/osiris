@@ -13,11 +13,12 @@ macros = ["osiris-macros"]
 debug = true
 
 [dependencies]
+argon2 = "0.5.0"
 
 core_affinity = "0.8.0"
 dns-protocol = "0.1.1"
 fastrand = "1.9.0"
-libc = "0.2.138"
+libc = "0.2.147"
 memchr = "2.5.0"
 num_cpus = "1.15.0"
 osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }

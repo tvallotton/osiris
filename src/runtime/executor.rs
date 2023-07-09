@@ -78,8 +78,8 @@ impl Executor {
     /// It polls at most `ticks` futures. It may poll less futures than
     /// the specified number of ticks.
     #[inline]
-    pub fn poll(&self, ticks: u32, task_id: &Cell<Option<u64>>) {
-        for _ in 0..ticks {
+    pub fn poll(&self, task_id: &Cell<Option<u64>>) {
+        loop {
             // we retrieve the queue of woken tasks
             let mut run_queue = self.queue.borrow_mut();
 

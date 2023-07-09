@@ -6,7 +6,7 @@ use std::os::fd::{FromRawFd, IntoRawFd};
 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
-use crate::reactor::op::{self};
+use crate::reactor::op;
 
 use libc::{SOCK_CLOEXEC, SOL_SOCKET, SO_REUSEPORT};
 

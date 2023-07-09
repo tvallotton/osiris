@@ -204,9 +204,7 @@ impl Runtime {
     /// This is the main loop
     fn event_loop<T>(&self, handle: &mut JoinHandle<T>, task_id: TaskId) -> io::Result<T> {
         let Runtime {
-            executor,
-            config,
-            reactor,
+            executor, reactor, ..
         } = self;
 
         let handel_waker = main_waker();
@@ -223,15 +221,13 @@ impl Runtime {
                     return Ok(out);
                 }
             }
-            executor.poll(config.event_interval, task_id);
+            executor.poll(task_id);
 
-            reactor.wake_tasks();
             if executor.is_idle() && !executor.main_handle.get() {
                 reactor.submit_and_wait()?;
             } else {
                 reactor.submit_and_yield()?;
             }
-            reactor.wake_tasks();
         }
     }
     /// Enters the runtime context. While the guard is in scope

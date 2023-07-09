@@ -516,7 +516,7 @@ pub async fn remove_file(path: impl AsRef<Path>) -> Result<()> {
 /// Non generic remove file
 async fn _remove_file(path: &Path) -> Result<()> {
     let path = cstr(path)?;
-    op::unlink_at(path).await?;
+    op::unlink_at(path, 0).await?;
     Ok(())
 }
 

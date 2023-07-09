@@ -1,26 +1,31 @@
-use self::reactor::Driver;
+use std::{
+    cell::{RefCell, RefMut},
+    io,
+    rc::Rc,
+};
+#[cfg(target_os = "linux")]
+use ::{
+    io_uring::{cqueue, squeue::Entry},
+    std::task::{Context, Poll},
+};
+
+#[cfg(target_os = "linux")]
+pub(crate) use self::iouring::{event::submit, op, Driver};
+
+#[cfg(target_os = "macos")]
+use kqueue::Driver;
+
 use crate::runtime::Config;
+
 #[cfg(target_os = "linux")]
-use io_uring::cqueue;
-#[cfg(target_os = "linux")]
-use io_uring::squeue::Entry;
-use std::cell::RefCell;
-use std::io;
-use std::rc::Rc;
-#[cfg(target_os = "linux")]
-use std::task::{Context, Poll};
-#[cfg(target_os = "linux")]
-mod event;
-pub mod op;
-mod reactor;
-#[cfg(target_os = "linux")]
-pub(crate) use event::submit;
+mod iouring;
+#[cfg(target_os = "macos")]
+mod kqueue;
 
 /// The driver stores the wakers for all the tasks that
 /// are waiting for IO and it will wake them when it is
 #[derive(Clone)]
 pub(crate) struct Reactor(Rc<RefCell<Driver>>);
-
 impl Reactor {
     // creates a new shared driver.
     pub fn new(config: Config) -> io::Result<Self> {
@@ -30,22 +35,22 @@ impl Reactor {
         Ok(Self(driver))
     }
     /// submits all io-events to the kernel and waits for at least one completion event.
-    pub fn submit_and_wait(&self) -> std::io::Result<()> {
-        self.0.borrow_mut().submit_and_wait()?;
+    pub fn submit_and_wait(&self) -> io::Result<()> {
+        let mut reactor = self.0.borrow_mut();
+        reactor.submit_and_wait()?;
+        reactor.wake_tasks();
         Ok(())
     }
     /// submits all io-events to the kernel and yields immediately without blocking the thread.
-    pub fn submit_and_yield(&self) -> std::io::Result<()> {
-        self.0.borrow_mut().submit_and_yield()?;
+    pub fn submit_and_yield(&self) -> io::Result<()> {
+        let mut reactor = self.0.borrow_mut();
+        reactor.submit_and_yield()?;
+        reactor.wake_tasks();
         Ok(())
     }
-    /// wakes up any tasks listening for IO events.
-    pub fn wake_tasks(&self) {
-        self.0.borrow_mut().wake_tasks();
-    }
 
-    pub fn len(&self) -> usize {
-        self.0.borrow_mut().wakers.len()
+    pub fn driver(&self) -> RefMut<'_, Driver> {
+        self.0.borrow_mut()
     }
 
     /// This function is used to poll the driver about a specific event.
