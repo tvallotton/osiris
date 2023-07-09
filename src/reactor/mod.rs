@@ -8,7 +8,7 @@ use ::{
 };
 
 #[cfg(target_os = "linux")]
-pub(crate) use self::iouring::{event::submit, op, Driver};
+pub(crate) use self::iouring::{op, Driver};
 
 #[cfg(target_os = "macos")]
 use kqueue::Driver;

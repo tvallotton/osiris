@@ -12,6 +12,6 @@ fn main() {
                 target_os = "netbsd",
                 target_os = "ios"
             )
-        }
+        },
     }
 }

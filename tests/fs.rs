@@ -1,3 +1,4 @@
+#![cfg(target_os = "linux")]
 use osiris::fs::{create_dir, metadata, remove_dir, remove_file, File, OpenOptions};
 
 #[osiris::test]

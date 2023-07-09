@@ -45,7 +45,7 @@ pub async fn timeout<F: Future>(dur: Duration, mut f: F) -> Result<F::Output, Er
     poll_fn(move |cx| {
         // Safety: we project the Pin
         let f = unsafe { Pin::new_unchecked(&mut f) };
-        let sleep = unsafe { Pin::new(&mut sleep) };
+        let sleep = unsafe { Pin::new_unchecked(&mut sleep) };
 
         if sleep.poll(cx).is_ready() {
             return Ready(Err(Error));

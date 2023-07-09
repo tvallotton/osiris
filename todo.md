@@ -1,5 +1,6 @@
-1. Spawn blocking
-2. Register buffers
+1. Register buffers
+2. Spawn blocking
 3. Register files (multishot accept)
-4. Kqueue driver (bsd)
-5. IO-ring driver (windows)
+4. KQueue driver (BSD)
+5. IOCP (windows)
+6. Sync Mutex and Send channels

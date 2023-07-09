@@ -1,15 +1,19 @@
 #![allow(warnings)]
 use std::ffi::CString;
+use std::future::poll_fn;
 use std::io::{Error, Result};
 use std::mem::{size_of_val, zeroed};
 use std::net::{Shutdown, SocketAddr};
 use std::path::Path;
+use std::pin::Pin;
+use std::task::{ready, Poll};
+use std::time::Duration;
 
 use io_uring::opcode::{
     self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, Read, Recv, SendMsg, Socket, Statx,
-    UnlinkAt, Write,
+    Timeout, UnlinkAt, Write,
 };
-use io_uring::types::{Fd, FsyncFlags};
+use io_uring::types::{Fd, FsyncFlags, Timespec};
 use libc::{iovec, msghdr, timespec, AT_FDCWD};
 
 use super::event::submit;
@@ -195,8 +199,24 @@ pub async fn mkdir_at(path: CString) -> Result<()> {
 /// (rather than relative to the current working directory of the calling
 /// process, as is done by unlink(2) and rmdir(2) for a relative pathname).
 pub async fn unlink_at(path: CString, flags: i32) -> Result<()> {
-    let sqe = UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr()).flags(0).build();
+    let sqe = UnlinkAt::new(Fd(AT_FDCWD), path.as_ptr())
+        .flags(flags)
+        .build();
     // Safety: the path is protected by submit
     let (cqe, _) = unsafe { submit(sqe, path).await };
     cqe.map(|_| ())
+}
+
+pub async fn sleep(time: Duration) {
+    let timespec = Timespec::new()
+        .sec(time.as_secs())
+        .nsec(time.subsec_nanos());
+    let timespec = Box::new(timespec);
+    let entry = Timeout::new(&*timespec as *const Timespec)
+        .count(u32::MAX)
+        .build();
+    // Safety: the resource (timespec) was passed to submit
+    let (mut event, _) = unsafe { submit(entry, timespec).await };
+    let err = event.unwrap_err();
+    assert_eq!(err.raw_os_error().unwrap(), 62, "{:?}", err);
 }
