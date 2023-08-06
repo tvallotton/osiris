@@ -8,7 +8,7 @@ use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
 use crate::reactor::op;
 
-use libc::{SOL_SOCKET, SO_REUSEPORT};
+use libc::{SOCK_CLOEXEC, SOL_SOCKET, SO_REUSEPORT};
 
 use super::utils::socket_addr;
 
@@ -46,8 +46,12 @@ pub struct Socket {
 impl Socket {
     /// Creates a new socket
     pub fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
+        let fd = unsafe { libc::socket(domain as _, SOCK_CLOEXEC | ty as i32, proto as _) };
+        if fd < 0 {
+            return Err(Error::last_os_error());
+        }
         // TODO: Figure out why this fails
-        let fd = op::socket(domain as _, ty as i32, proto as _, None)?;
+        // let fd = op::socket(domain as _, ty as i32, proto as _, None)?;
         Ok(Self { fd })
     }
 
