@@ -24,17 +24,21 @@ use std::task::{Context, Poll, Waker};
 /// [`try_join!`]: crate::try_join
 ///
 /// # Implementation notes
-/// Unlike other implementations, this `join!` will not poll spuriously every
-/// joined future. This is achieved by allocating a shared waker, and swapping the
-/// waker vtable for each child future. This allows us to avoid spurious polling
-/// without performing one allocation per future.
+/// This `join!` macro implementation has two advantages over other alternative
+/// implementations:
+/// 1. It does not poll spuriously (i.e. it doesn't poll branches that weren't woken).
+/// 2. It doesn't require one allocation per future.
+///
+/// It however has one drawback when compared to Tokio's `join!` macro implemtation, and that
+/// is that it incurs in a single memory allocation. This implementation effectively trades off
+/// the spurious polling in exchange for a memory allocation.
 ///
 /// ### Differences with spawn
 ///
 /// When it comes to performance, `join!` is more memory efficient that [`spawn`],
 /// because it only incurs in a single allocation instead of one per future. However,
 /// `join!` might make the future transform more complex, and reduce the branch efficiency of the
-/// poll implementation.
+/// poll implementation. Note that `osiris::join!` is not as branch inefficient as Tokio's.
 ///
 /// In practice, it is useful to use `join!` when the `'static` bound on `spawn` cannot
 /// be easily satisfied.

@@ -9,6 +9,61 @@ use std::task::{Context, Poll, Waker};
 
 use super::{cast, JoinWaker};
 
+/// Waits on multiple concurrent branches, returning when **all** branches
+/// complete with `Ok(_)` or on the first `Err(_)`.
+///
+/// The `try_join!` macro must be used inside of async functions, closures, and
+/// blocks.
+///
+/// Similar to [`join!`], the `try_join!` macro takes a list of async
+/// expressions and evaluates them concurrently on the same task. Each async
+/// expression evaluates to a future and the futures from each expression are
+/// multiplexed on the current task. The `try_join!` macro returns when **all**
+/// branches return with `Ok` or when the **first** branch returns with `Err`.
+///
+///
+/// # Implementation notes
+/// This `try_join!` macro implementation has two advantages over other alternative
+/// implementations:
+/// 1. It does not poll spuriously (i.e. it doesn't poll branches that weren't woken).
+/// 2. It doesn't require one allocation per future.
+///
+/// It however has one drawback when compared to Tokio's `try_join!` macro implemtation, and that
+/// is that it incurs in a single memory allocation. This implementation effectively trades off
+/// the spurious polling in exchange for a memory allocation.
+///
+/// [`spawn`]: crate::spawn
+/// [`join!`]: crate::join!
+///
+/// # Examples
+///
+/// Basic try_join with two branches.
+///
+/// ```
+/// async fn do_stuff_async() -> Result<i32, &'static str> {
+///     // async work
+///     
+/// # Ok(1)
+/// }
+///
+/// async fn more_async_work() -> Result<i32, &'static str> {
+///     // more here
+/// # Ok(2)
+/// }
+///
+/// #[osiris::main]
+/// async fn main() -> Result<(), &'static str> {
+///     let (first, second) = osiris::try_join!(
+///         do_stuff_async(),
+///         more_async_work()
+///     )?;
+///     
+///     assert_eq!(first, 1);
+///     assert_eq!(second, 2);
+///    
+///     Ok(())
+/// }
+/// ```
 #[macro_export]
 macro_rules! try_join {
     ($($input:expr),* $(,)?) => {{
