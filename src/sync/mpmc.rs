@@ -544,7 +544,9 @@ impl<T> Queue<T> {
     fn try_push(&mut self, value: &mut Option<T>) -> Result<(), ()> {
         match self {
             Queue::Bounded(queue) if queue.len() < queue.capacity() => {
-                let Some(value) = value.take() else { unreachable!() };
+                let Some(value) = value.take() else {
+                    unreachable!()
+                };
                 queue.push_back(value);
                 Ok(())
             }

@@ -166,7 +166,7 @@ pub use task::{detach, spawn};
 pub mod buf;
 #[cfg(target_os = "linux")]
 pub mod fs;
-pub mod future;
+pub mod macros;
 pub mod net;
 mod reactor;
 pub mod runtime;

@@ -62,12 +62,16 @@ where
 {
     fn poll(self: Pin<&Self>, cx: &mut Context) {
         let mut payload = self.payload.borrow_mut();
-        let Payload::Pending { fut } = &mut *payload else { return };
+        let Payload::Pending { fut } = &mut *payload else {
+            return;
+        };
         // Safety: we can safely project the pin because the payload
         // future is never moved.
         let fut = unsafe { Pin::new_unchecked(fut) };
 
-        let Poll::Ready(output) = fut.poll(cx) else { return };
+        let Poll::Ready(output) = fut.poll(cx) else {
+            return;
+        };
         *payload = Payload::Ready { output };
         // let's wake the joining task.
         self.wake_join_handle();
@@ -130,11 +134,11 @@ where
         let Ok(mut task) = self.payload.try_borrow_mut() else {
             // we don't want to abort the process by
             // double panicking
-            let msg = "A task attempted to abort itself. This is not supported, move the JoinHandle to another task or detach it if you don't want it to panic."; 
+            let msg = "A task attempted to abort itself. This is not supported, move the JoinHandle to another task or detach it if you don't want it to panic.";
             if panicking() {
-                return eprintln!("{msg}"); 
-            } else{
-                unimplemented!("{msg}"); 
+                return eprintln!("{msg}");
+            } else {
+                unimplemented!("{msg}");
             }
         };
 
@@ -144,7 +148,7 @@ where
             return;
         }
 
-        let Payload::Panic{ error } = replace(&mut *task, Payload::Aborted) else {
+        let Payload::Panic { error } = replace(&mut *task, Payload::Aborted) else {
             // Safety: already checked for the case above
             unsafe { unreachable_unchecked() }
         };

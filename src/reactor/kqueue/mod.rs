@@ -78,7 +78,6 @@ impl Driver {
             let Some(waker) = self.wakers.remove(&id(*event)) else {
                 continue;
             };
-            println!("waking");
             waker.wake();
         }
         self.queue.clear();

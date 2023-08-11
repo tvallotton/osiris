@@ -47,7 +47,9 @@ impl ResolvConf {
     fn load_from_file(&mut self) {
         // we do this load synchronously to avoid mutexes on the thread local.
         // it should be fine since we only do this once.
-        let Ok(conf) = std::fs::read_to_string("/etc/resolv.conf") else { return; };
+        let Ok(conf) = std::fs::read_to_string("/etc/resolv.conf") else {
+            return;
+        };
         for mut line in conf.lines() {
             if let Some(cmmt) = line.find('#') {
                 line = &line[..cmmt];
@@ -55,14 +57,16 @@ impl ResolvConf {
 
             let mut columns = line.split_ascii_whitespace();
             let Some(key) = columns.next() else { continue };
-            let Some(value) = columns.next() else { continue };
+            let Some(value) = columns.next() else {
+                continue;
+            };
 
             match key {
                 "search" => {
                     self.search = Some(value.into());
                 }
                 "nameserver" => {
-                    let Ok(ip) =  value.parse() else { continue };
+                    let Ok(ip) = value.parse() else { continue };
                     self.name_servers.push(ip);
                 }
                 "options" => {
@@ -71,7 +75,9 @@ impl ResolvConf {
                         self.ndots = ndots;
                     }
                     if let Some(timeout) = value.strip_prefix("timeout:") {
-                        let Ok(timeout) = timeout.parse() else { continue };
+                        let Ok(timeout) = timeout.parse() else {
+                            continue;
+                        };
                         self.timeout = timeout;
                     }
 

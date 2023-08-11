@@ -138,7 +138,7 @@ pub fn to_std_socket_addr(storage: &libc::sockaddr) -> Result<SocketAddr> {
 
 pub fn remove_comment(line: &[u8]) -> &[u8] {
     let Some(i) = memchr(b'#', line) else {
-        return line
+        return line;
     };
     &line[..i]
 }
