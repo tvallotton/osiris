@@ -1,6 +1,3 @@
-//! This is used for internal macros only.
-//! Changes to this API are not considered breaking.
-
 use std::io;
 use std::panic::UnwindSafe;
 use std::process::{ExitCode, Termination};
