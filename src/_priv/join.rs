@@ -1,11 +1,68 @@
 use std::future::Future;
-use std::mem::transmute;
+
+use super::{cast, JoinWaker};
 use std::ops::ControlFlow;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::task::{Context, Poll, Wake, Waker};
+use std::task::{Context, Poll, Waker};
 
+/// Waits on multiple concurrent branches, returning when **all** branches
+/// complete.
+///
+/// The `join!` macro must be used inside of async functions, closures, and
+/// blocks.
+///
+/// The `join!` macro takes a list of async expressions and evaluates them
+/// concurrently on the same task. Each async expression evaluates to a future
+/// and the futures from each expression are multiplexed on the current task.
+///
+/// When working with async expressions returning `Result`, `join!` will wait
+/// for **all** branches complete regardless if any complete with `Err`. Use
+/// [`try_join!`] to return early when `Err` is encountered.
+///
+/// [`try_join!`]: crate::try_join
+///
+/// # Implementation notes
+/// Unlike other implementations, this `join!` will not poll spuriously every
+/// joined future. This is achieved by allocating a shared waker, and swapping the
+/// waker vtable for each child future. This allows us to avoid spurious polling
+/// without performing one allocation per future.
+///
+/// ### Differences with spawn
+///
+/// When it comes to performance, `join!` is more memory efficient that [`spawn`],
+/// because it only incurs in a single allocation instead of one per future. However,
+/// `join!` might make the future transform more complex, and reduce the branch efficiency of the
+/// poll implementation.
+///
+/// In practice, it is useful to use `join!` when the `'static` bound on `spawn` cannot
+/// be easily satisfied.
+///
+/// [`spawn`]: crate::spawn
+///
+/// # Examples
+///
+/// Basic join with two branches
+///
+/// ```
+/// async fn do_stuff_async() {
+///     // async work
+/// }
+///
+/// async fn more_async_work() {
+///     // more here
+/// }
+///
+/// #[osiris::main]
+/// async fn main() {
+///     let (first, second) = osiris::join!(
+///         do_stuff_async(),
+///         more_async_work());
+///
+///     // do something with the values
+/// }
+/// ```
 #[macro_export]
 macro_rules! join {
     ($($input:expr),* $(,)?) => {{
@@ -152,27 +209,4 @@ implement_future_for_tuple! {
         'a28,'a29,'a30,'a31,
 
     ]
-}
-
-pub struct JoinWaker<const I: u8>(Waker, AtomicU64);
-
-impl<const I: u8> JoinWaker<I> {
-    pub fn new(waker: Waker) -> Self {
-        JoinWaker(waker, AtomicU64::new(!0))
-    }
-}
-
-fn cast<const I: u8, const J: u8>(arc: Arc<JoinWaker<I>>) -> Arc<JoinWaker<J>> {
-    unsafe { transmute(arc) }
-}
-
-impl<const I: u8> Wake for JoinWaker<I> {
-    fn wake(self: Arc<Self>) {
-        self.wake_by_ref();
-    }
-
-    fn wake_by_ref(self: &Arc<Self>) {
-        self.0.wake_by_ref();
-        self.1.fetch_or(1 << I, Ordering::Release);
-    }
 }
