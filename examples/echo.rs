@@ -16,7 +16,7 @@ const N: usize = 1000;
 #[osiris::main]
 async fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:8080").await?;
-    let time = std::time::Instant::now();
+    // let time = std::time::Instant::now();
     // detach(async {
     //     loop {
     //         osiris::task::yield_now().await;
