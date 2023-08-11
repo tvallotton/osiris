@@ -62,8 +62,8 @@ where
     match f() {
         Err(err) => {
             let Some(libc::EAGAIN | libc::EINPROGRESS) = err.raw_os_error() else {
-                    return Err(err);
-                };
+                return Err(err);
+            };
             wait(kevent).await
         }
         _ => Ok(()),

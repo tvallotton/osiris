@@ -272,7 +272,7 @@ async fn question_with_tcp(id: u16, query: impl IoBuf, nameserver: IpAddr) -> Re
     // Read the length of the response.
     let len_bytes = vec![0; 2];
     let (Ok(2), len_bytes) = socket.read(len_bytes).await else {
-        return Err(Error::new(ErrorKind::Other, "received malformed response."))
+        return Err(Error::new(ErrorKind::Other, "received malformed response."));
     };
 
     let len = u16::from_be_bytes([len_bytes[0], len_bytes[1]]) as usize;

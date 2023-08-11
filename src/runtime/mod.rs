@@ -107,7 +107,7 @@ pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
 #[inline]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
     let Some(rt) = current() else {
-         panic!("called `{fun}` from the outside of a runtime context.")
+        panic!("called `{fun}` from the outside of a runtime context.")
     };
     rt
 }

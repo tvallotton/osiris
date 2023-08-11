@@ -67,11 +67,12 @@ impl<T: 'static> Drop for Event<T> {
             let data = self.data.take().unwrap();
             let Some(rt) = current() else {
                 forget(data);
-                let msg = "memory leak detected. failed to spawn cleanup task while cancelling a future."; 
+                let msg =
+                    "memory leak detected. failed to spawn cleanup task while cancelling a future.";
                 if !panicking() {
-                    panic!("{msg}"); 
+                    panic!("{msg}");
                 } else {
-                    eprintln!("error: {msg}"); 
+                    eprintln!("error: {msg}");
                 }
                 return;
             };

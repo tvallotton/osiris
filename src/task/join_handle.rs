@@ -57,7 +57,7 @@ impl<T> JoinHandle<T> {
         JoinHandle {
             task,
             detached: false,
-            _t: PhantomData::default(),
+            _t: PhantomData,
         }
     }
 }

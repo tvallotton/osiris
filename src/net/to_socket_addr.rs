@@ -154,8 +154,8 @@ where
     for addr in addr.to_socket_addrs().await? {
         let result = f(addr).await;
         let Err(err) = result else {
-                return result;
-            };
+            return result;
+        };
         error = Some(err);
     }
     Err(error.unwrap_or_else(invalid_input))
