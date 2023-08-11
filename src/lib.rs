@@ -104,6 +104,8 @@
 //! ## File system
 //! Unlike nonblocking based runtimes, Osiris offers true asynchronous file I/O
 //! ```
+//! # #[cfg(target_os = "linux")]
+//! # {
 //! use osiris::fs::read_to_string;
 //!
 //! #[osiris::main]
@@ -112,6 +114,7 @@
 //!     assert!(data.contains("osiris"));
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //! ## Networking
 //! Osiris offers networking types analogous to the ones found in [`std::net`].
