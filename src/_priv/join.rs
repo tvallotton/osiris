@@ -11,8 +11,8 @@ macro_rules! join {
     ($($input:expr),* $(,)?) => {{
         async {
             let waker = std::future::poll_fn(|cx| std::task::Poll::Ready(cx.waker().clone())).await;
-            let waker = std::sync::Arc::new($crate::macros::JoinWaker::new(waker));
-            let out = $crate::macros::Join::<($($crate::join!(@ignore $input),)*)>::new(($($input,)*), waker);
+            let waker = std::sync::Arc::new($crate::_priv::JoinWaker::new(waker));
+            let out = $crate::_priv::Join::<($($crate::join!(@ignore $input),)*)>::new(($($input,)*), waker);
             out.await
         }
         .await
