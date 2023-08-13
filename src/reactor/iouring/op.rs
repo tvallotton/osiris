@@ -8,7 +8,7 @@ use std::path::Path;
 use std::pin::Pin;
 use std::task::{ready, Poll};
 use std::time::Duration;
-
+use crate::utils::{STATX_ALL, statx};
 use io_uring::opcode::{
     self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, Read, Recv, SendMsg, Socket, Statx,
     Timeout, UnlinkAt, Write,
@@ -93,15 +93,15 @@ pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
 /// ```ignore
 /// let statx = op::statx(libc::AT_FDCWD, Some(path)).await?;
 /// ```
-pub async fn statx(fd: i32, path: Option<CString>) -> Result<libc::statx> {
+pub async fn statx(fd: i32, path: Option<CString>) -> Result<statx> {
     let pathname = path
         .as_ref()
         .map(|x| x.as_ptr())
         .unwrap_or(b"\0".as_ptr() as *const _);
-    let statx = std::mem::MaybeUninit::<libc::statx>::uninit();
+    let statx = std::mem::MaybeUninit::<statx>::uninit();
     let mut statx = Box::new(statx);
     let sqe = Statx::new(Fd(fd), pathname, statx.as_mut_ptr().cast())
-        .mask(libc::STATX_ALL)
+        .mask(STATX_ALL)
         .flags(if path.is_none() {
             libc::AT_EMPTY_PATH
         } else {

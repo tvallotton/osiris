@@ -1,8 +1,8 @@
 use super::cstr;
 use crate::reactor::op;
-use libc::{statx, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
+use crate::utils::{statx, statx_timestamp};
+use libc::{S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
 use std::io::{self, Result};
-
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
@@ -184,7 +184,7 @@ impl Metadata {
     }
 }
 
-fn system_time(time: libc::statx_timestamp) -> SystemTime {
+fn system_time(time: statx_timestamp) -> SystemTime {
     let secs = Duration::from_secs(time.tv_sec as _);
     let nanos = Duration::from_nanos(time.tv_nsec as _);
     SystemTime::UNIX_EPOCH + secs + nanos

@@ -5,12 +5,12 @@
 //!
 //! * An **I/O event loop**, called the reactor, which reacts to I/O events
 //!  and dispatches them events to tasks that depend on them.
-//! * A **scheduler** to execute [tasks] that use these I/O resources.
+//! * A **scheduler** to execute [tasks](crate::task) that use these I/O resources.
 //!
-//! Orisirs's [`Runtime`] bundles these two services as a single type, allowing
+//! Osiris' [`Runtime`] bundles these two services as a single type, allowing
 //! them to be started, shut down, and configured together. However, often it is
 //! not required to configure a [`Runtime`] manually, and a user may just use the
-//! [`tokio::main`] attribute macro or the [`block_on`] function which create
+//! `tokio::main` attribute macro or the [`block_on`] function which create
 //! a runtime under the hood.
 //!
 //! # Usage
