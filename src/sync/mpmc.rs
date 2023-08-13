@@ -1,10 +1,10 @@
 //! Multi-producer, multi-consumer FIFO queue communication primitives.
 //!
-//! Note that unlike this std's, tokio's, or crossbeam's channels, osiris's channel
+//! Note that unlike std's, tokio's, or crossbeam's channels, osiris's channel
 //! is designed to be used across tasks, not across threads, so they do not implement
 //! the `Send` and `Sync` traits. Synchronizing tasks is cheaper than
 //! synchronizing threads, so when working with osiris tasks, this implementation is a
-//!  good choice.
+//! good choice.
 //!
 //! This module provides message-based communication over channels, concretely
 //! defined among two types:

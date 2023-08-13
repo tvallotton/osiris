@@ -179,3 +179,4 @@ pub mod time;
 pub use osiris_macros::{main, test};
 #[doc(hidden)]
 pub mod _priv;
+mod utils;
