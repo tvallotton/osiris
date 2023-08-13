@@ -1,4 +1,11 @@
 #![allow(warnings)]
+use crate::utils::{statx, STATX_ALL};
+use io_uring::opcode::{
+    self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, Read, Recv, SendMsg, Socket, Statx,
+    Timeout, UnlinkAt, Write,
+};
+use io_uring::types::{Fd, FsyncFlags, Timespec};
+use libc::{iovec, msghdr, timespec, AT_FDCWD};
 use std::ffi::CString;
 use std::future::poll_fn;
 use std::io::{Error, Result};
@@ -8,13 +15,6 @@ use std::path::Path;
 use std::pin::Pin;
 use std::task::{ready, Poll};
 use std::time::Duration;
-use crate::utils::{STATX_ALL, statx};
-use io_uring::opcode::{
-    self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, Read, Recv, SendMsg, Socket, Statx,
-    Timeout, UnlinkAt, Write,
-};
-use io_uring::types::{Fd, FsyncFlags, Timespec};
-use libc::{iovec, msghdr, timespec, AT_FDCWD};
 
 use super::event::submit;
 use crate::buf::{IoBuf, IoBufMut};
