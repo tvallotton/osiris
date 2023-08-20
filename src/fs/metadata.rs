@@ -16,10 +16,21 @@ async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
     Ok(Metadata { statx })
 }
 
+/// Metadata information about a file.
+///
+/// This structure is returned from the [`metadata`] function
+/// or method and represents known metadata about a file such
+/// as its permissions, size, modification
+/// times, etc.
 pub struct Metadata {
     #[cfg(target_os = "linux")]
     pub(crate) statx: statx,
 }
+
+/// A structure representing a type of file with accessors for each file type.
+/// It is returned by [`Metadata::file_type`] method.
+#[derive(Clone, Copy)]
+pub struct FileType(u16);
 
 impl Metadata {
     /// Returns the last access time of this metadata.
@@ -129,7 +140,7 @@ impl Metadata {
     /// ```
     #[must_use]
     pub fn is_dir(&self) -> bool {
-        (self.statx.stx_mode as u32 & S_IFMT) == S_IFDIR
+        self.file_type().is_dir()
     }
 
     /// Returns `true` if this metadata is for a regular file. The
@@ -154,13 +165,33 @@ impl Metadata {
     /// ```
     #[must_use]
     pub fn is_file(&self) -> bool {
-        (self.statx.stx_mode as u32 & S_IFMT) == S_IFREG
+        self.file_type().is_file()
+    }
+
+    /// Returns the file type for this metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs;
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> std::io::Result<()> {
+    ///
+    ///     let metadata = fs::metadata("foo.txt").await?;
+    ///
+    ///     println!("{:?}", metadata.file_type().is_file());
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn file_type(&self) -> FileType {
+        FileType(self.statx.stx_mode)
     }
 
     /// Returns `true` if this metadata is for a symbolic link.
     #[must_use]
     pub fn is_symlink(&self) -> bool {
-        (self.statx.stx_mode as u32 & S_IFMT) == S_IFLNK
+        self.file_type().is_symlink()
     }
 
     /// Returns the size of the file, in bytes, this metadata is for.
@@ -181,6 +212,108 @@ impl Metadata {
     #[must_use]
     pub fn len(&self) -> usize {
         self.statx.stx_size as usize
+    }
+}
+
+impl FileType {
+    /// Returns `true` if this metadata is for a directory. The
+    /// result is mutually exclusive to the result of
+    /// [`Metadata::is_file`], and will be false for symlink metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # osiris::block_on(async {
+    /// use osiris::fs;
+    ///
+    /// let metadata = fs::metadata("./target").await?;
+    /// assert!(!metadata.file_type().is_dir());
+    /// # std::io::Result::Ok(()) }).unwrap();
+    /// ```
+    #[must_use]
+    pub fn is_dir(&self) -> bool {
+        (self.0 as u32 & S_IFMT) == S_IFDIR
+    }
+
+    /// Returns `true` if this metadata is for a regular file. The
+    /// result is mutually exclusive to the result of
+    /// [`Metadata::is_dir`], and will be false for symlink metadata.
+    ///
+    /// When the goal is simply to read from (or write to) the source, the most
+    /// reliable way to test the source can be read (or written to) is to open
+    /// it. Only using `is_file` can break workflows like `diff <( prog_a )` on
+    /// a Unix-like system for example. See [`File::open`](crate::fs::File::open) or
+    /// [`OpenOptions::open`](crate::fs::OpenOptions::open) for more information.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # osiris::block_on(async {
+    /// use osiris::fs;
+    ///
+    /// let metadata = fs::metadata("Cargo.lock").await?;
+    /// assert!(metadata.file_type().is_file());
+    /// # std::io::Result::Ok(()) }).unwrap();
+    /// ```
+    #[must_use]
+    pub fn is_file(&self) -> bool {
+        (self.0 as u32 & S_IFMT) == S_IFREG
+    }
+
+    /// Tests whether this file type represents a symbolic link.
+    /// The result is mutually exclusive to the results of
+    /// [`is_dir`] and [`is_file`]; only zero or one of these
+    /// tests may pass.
+    ///
+    /// The underlying [`Metadata`] struct needs to be retrieved
+    /// with the [`fs::symlink_metadata`] function and not the
+    /// [`fs::metadata`] function. The [`fs::metadata`] function
+    /// follows symbolic links, so [`is_symlink`] would always
+    /// return `false` for the target file.
+    ///
+    /// [`fs::metadata`]: metadata
+    /// [`fs::symlink_metadata`]: symlink_metadata
+    /// [`is_dir`]: FileType::is_dir
+    /// [`is_file`]: FileType::is_file
+    /// [`is_symlink`]: FileType::is_symlink
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs;
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> std::io::Result<()> {
+    ///     let metadata = fs::metadata("foo.txt").await?;
+    ///     let file_type = metadata.file_type();
+    ///
+    ///     assert_eq!(file_type.is_symlink(), false);
+    ///     Ok(())
+    /// }
+    /// ```
+    #[must_use]
+    pub fn is_symlink(&self) -> bool {
+        (self.0 as u32 & S_IFMT) == S_IFLNK
+    }
+
+    /// Returns `true` if this file type is a fifo.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use osiris::fs;
+    /// use std::io;
+    ///
+    /// #[osiris::main]
+    /// async fn main() -> io::Result<()> {
+    ///     let meta = fs::metadata("fifo_file").await?;
+    ///     let file_type = meta.file_type();
+    ///     assert!(file_type.is_fifo());
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn is_fifo(&self) -> bool {
+        (self.0 as u32 & libc::S_IFIFO) == libc::S_IFIFO
     }
 }
 
