@@ -1,12 +1,16 @@
 use super::{Config, Runtime};
+use crate::net::pipe;
 use crate::task::Task;
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::future::{poll_fn, Future};
+use std::io::Error;
 use std::mem::transmute;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
+use std::rc::Rc;
+use std::sync::Arc;
 use std::task::Context;
 
 pub(crate) struct Executor {
@@ -18,6 +22,9 @@ pub(crate) struct Executor {
     /// A monotonically increasing counter for spawned tasks.
     /// It always corresponds to an available task id.
     pub(crate) task_id: Cell<u64>,
+    /// A pipe sender used for wakeups across threads.
+    pub(crate) sender: Arc<pipe::Sender>,
+    pub(crate) receiver: Rc<pipe::Receiver>,
 }
 
 fn catch_unwind<T>(f: impl FnOnce() -> T) -> Result<T, Box<dyn Any + Send>> {
@@ -26,12 +33,15 @@ fn catch_unwind<T>(f: impl FnOnce() -> T) -> Result<T, Box<dyn Any + Send>> {
 
 impl Executor {
     /// Creates a new executor
-    pub fn new(Config { init_capacity, .. }: Config) -> Executor {
-        Executor {
+    pub fn new(Config { init_capacity, .. }: Config) -> Result<Executor, Error> {
+        let (sender, receiver) = pipe::pipe()?;
+        Ok(Executor {
             queue: RefCell::new(VecDeque::with_capacity(init_capacity)),
             main_handle: Cell::new(true),
             task_id: Cell::default(),
-        }
+            sender: Arc::new(sender),
+            receiver: Rc::new(receiver),
+        })
     }
 
     pub fn task_id(&self) -> u64 {

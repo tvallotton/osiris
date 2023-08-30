@@ -4,6 +4,7 @@
     clippy::cast_ptr_alignment,
     clippy::enum_glob_use
 )]
+
 use crate::runtime::Runtime;
 
 use super::meta::Metadata;
@@ -35,7 +36,7 @@ pub(crate) struct SharedTask {
 #[repr(C)]
 struct Inner {
     /// the id for the thread where the Task was constructed
-    thread_id: ThreadId,
+    pub thread_id: ThreadId,
     /// the reference count
     count: AtomicUsize,
     /// metadata for the task.
@@ -124,6 +125,10 @@ impl SharedTask {
         // Safety: This is ok because while this arc is alive we're guaranteed
         // that the inner pointer is valid.
         unsafe { &*self.data }
+    }
+
+    pub fn thread_id(&self) -> ThreadId {
+        self.inner().thread_id
     }
 
     #[inline]

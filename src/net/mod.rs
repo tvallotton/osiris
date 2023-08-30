@@ -1,6 +1,6 @@
 #[cfg(io_uring)]
 mod dns;
-mod pipe;
+pub(crate) mod pipe;
 mod socket;
 mod tcp_listener;
 mod tcp_stream;

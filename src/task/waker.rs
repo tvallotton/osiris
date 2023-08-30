@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use super::SharedTask;
-use std::mem::forget;
+use std::mem::{forget, size_of};
 use std::task::{RawWaker, RawWakerVTable, Waker};
 
 pub(crate) fn waker(task: SharedTask) -> Waker {
@@ -23,12 +23,22 @@ const RAW_WAKER_VTABLE: RawWakerVTable = {
         raw_waker(new.into_ptr())
     };
 
-    let wake = |data| {
+    let wake = |data| unsafe {
         // Safety: its the same as the input type
-        let task = unsafe { SharedTask::from_raw(data) };
-        let executor = task.meta().rt.executor;
-        let mut queue = executor.queue.borrow_mut();
-        queue.push_back(task);
+        let task = SharedTask::from_raw(data);
+
+        if task.thread_id() == std::thread::current().id() {
+            let executor = task.meta().rt.executor;
+            let mut queue = executor.queue.borrow_mut();
+            queue.push_back(task);
+            return;
+        }
+        let sender = task.meta().rt.executor.sender.clone();
+        let waker = task.waker();
+        let mut buf = vec![0; size_of::<Waker>()];
+        buf.as_mut_ptr().cast::<Waker>().write(waker);
+        // detach(sender.write(buf));
+        todo!()
     };
 
     let wake_by_ref = |data| {
