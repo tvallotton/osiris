@@ -99,7 +99,7 @@ impl Config {
     /// # Errors
     /// If the async primitives could not be instantiated.
     pub fn build(self) -> std::io::Result<Runtime> {
-        let executor = Rc::new(Executor::new(self.clone()));
+        let executor = Rc::new(Executor::new(self.clone())?);
         let reactor = Reactor::new(self.clone())?;
         let rt = Runtime {
             config: self,

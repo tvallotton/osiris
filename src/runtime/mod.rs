@@ -60,7 +60,8 @@
 //! ```
 //!
 use crate::reactor::Reactor;
-use crate::runtime::waker::main_waker;
+use crate::runtime::waker::{forward_multithreaded_wakeups, main_waker};
+use crate::spawn;
 use crate::task::JoinHandle;
 use executor::Executor;
 use std::cell::Cell;
@@ -79,38 +80,6 @@ mod globals;
 mod waker;
 
 type TaskId<'a> = &'a Cell<Option<u64>>;
-
-/// Returns a handle to the currently running [`Runtime`].
-/// # Panics
-/// This will panic if called outside the context of a osiris runtime.
-/// It is ok to call this function from a spawned task or from a [blocked on](block_on) future.
-#[track_caller]
-#[must_use]
-pub fn current() -> Option<Runtime> {
-    RUNTIME.with(|cell| cell.borrow().clone())
-}
-
-/// Run a future to completion on the current thread.
-/// This function will block the caller until the given future has completed.
-///
-/// # Errors
-/// Errors if the io-ring could not be allocated.
-///  
-/// # Panics
-/// Panics if called from the inside of another osiris runtime.
-/// Runtimes cannot be nested.
-pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
-    Runtime::new()?.block_on(f)
-}
-
-#[track_caller]
-#[inline]
-pub(crate) fn current_unwrap(fun: &str) -> Runtime {
-    let Some(rt) = current() else {
-        panic!("called `{fun}` from the outside of a runtime context.")
-    };
-    rt
-}
 
 /// The osiris local runtime.
 #[derive(Clone)]
@@ -182,6 +151,12 @@ impl Runtime {
 
         // Safety: The future is never moved
         let future = unsafe { Pin::new_unchecked(&mut future) };
+
+        // we want to forward any wakeup calls coming from other
+        // threads.
+        let _handle = spawn(forward_multithreaded_wakeups(
+            self.executor.receiver.clone(),
+        ));
 
         // # Safety:
         // This operation is safe because the task will not outlive the function scope.
@@ -270,4 +245,36 @@ impl Runtime {
         // Safety: both types are F::Output
         unsafe { JoinHandle::new(task) }
     }
+}
+
+/// Returns a handle to the currently running [`Runtime`].
+/// # Panics
+/// This will panic if called outside the context of a osiris runtime.
+/// It is ok to call this function from a spawned task or from a [blocked on](block_on) future.
+#[track_caller]
+#[must_use]
+pub fn current() -> Option<Runtime> {
+    RUNTIME.with(|cell| cell.borrow().clone())
+}
+
+/// Run a future to completion on the current thread.
+/// This function will block the caller until the given future has completed.
+///
+/// # Errors
+/// Errors if the io-ring could not be allocated.
+///  
+/// # Panics
+/// Panics if called from the inside of another osiris runtime.
+/// Runtimes cannot be nested.
+pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
+    Runtime::new()?.block_on(f)
+}
+
+#[track_caller]
+#[inline]
+pub(crate) fn current_unwrap(fun: &str) -> Runtime {
+    let Some(rt) = current() else {
+        panic!("called `{fun}` from the outside of a runtime context.")
+    };
+    rt
 }
