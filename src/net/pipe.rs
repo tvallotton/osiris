@@ -6,6 +6,7 @@ use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use crate::buf::{IoBuf, IoBufMut};
 
 use crate::reactor::op;
+use crate::utils::syscall;
 
 pub(crate) struct Sender {
     fd: OwnedFd,
@@ -17,10 +18,7 @@ pub(crate) struct Receiver {
 pub(crate) fn pipe() -> Result<(Sender, Receiver), Error> {
     let mut fds = [-1, -1];
 
-    let res = unsafe { libc::pipe(&mut fds[0]) };
-    if res == -1 {
-        return Err(Error::last_os_error());
-    }
+    syscall!(pipe, &mut fds[0])?;
 
     let sender = Sender {
         fd: unsafe { OwnedFd::from_raw_fd(fds[1]) },
@@ -37,6 +35,11 @@ impl Sender {
         let fd = self.fd.as_raw_fd();
         dbg!(fd);
         op::write_at(fd, buf, -1).await
+    }
+
+    pub async fn write_nonblock(&self, buf: &[u8]) -> Result<usize, Error> {
+        let fd = self.fd.as_raw_fd();
+        op::write_nonblock(fd, buf).await
     }
 }
 

@@ -1,32 +1,35 @@
 #![allow(warnings)]
-#[cfg(target_os = "linux")]
+
 use io_uring::{cqueue, squeue, IoUring};
+use std::borrow::BorrowMut;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io;
 use std::ops::ControlFlow;
 use std::ops::ControlFlow::*;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
 use std::task::{Poll, Waker};
 use std::time::Duration;
 
 use crate::detach;
 use crate::runtime::Config;
 use crate::time::sleep;
+use crate::utils::{epoll_event, syscall};
 
 pub mod event;
 pub mod op;
 
 #[non_exhaustive]
 pub(crate) struct Driver {
-    #[cfg(target_os = "linux")]
+    // pub(crate) epoll: OwnedFd,
     /// the wakers for tasks listening for IO.
     pub(crate) wakers: HashMap<u64, ControlFlow<cqueue::Entry, Waker>>,
     /// this value corresponds to the last occupied id.
     /// This id will be stored in io-uring's `user_data` attribute
     event_id: u64,
-    #[cfg(target_os = "linux")]
     io_uring: IoUring,
 }
+
 #[allow(warnings)]
 impl Driver {
     /// creates a new driver.
@@ -36,47 +39,39 @@ impl Driver {
         let wakers = HashMap::with_capacity(config.init_capacity);
         #[cfg(target_os = "linux")]
         let io_uring = config.io_uring()?;
-
         let event_id = 0;
         let driver = Driver {
-            #[cfg(target_os = "linux")]
             wakers,
             event_id: 1,
-            #[cfg(target_os = "linux")]
             io_uring,
         };
         Ok(driver)
     }
 
     pub fn submit_and_yield(&mut self) -> io::Result<()> {
-        #[cfg(target_os = "linux")]
         self.io_uring.submit()?;
         Ok(())
     }
 
     pub fn submit_and_wait(&mut self) -> io::Result<()> {
-        #[cfg(target_os = "linux")]
         self.io_uring.submit_and_wait(1)?;
         Ok(())
     }
 
     pub fn wake_tasks(&mut self) {
-        #[cfg(target_os = "linux")]
-        {
-            let cqueue = self.io_uring.completion();
-            for cevent in cqueue {
-                let Entry::Occupied(mut entry) = self.wakers.entry(cevent.user_data()) else {
-                    unreachable!(
+        let cqueue = self.io_uring.completion();
+        for cevent in cqueue {
+            let Entry::Occupied(mut entry) = self.wakers.entry(cevent.user_data()) else {
+                unreachable!(
                         "This is a bug in osiris: a waker has been lost, a CQE was recieved but no associated waker was found."
                     );
-                };
-                let Continue(waker) = entry.insert(Break(cevent)) else {
-                    unreachable!(
+            };
+            let Continue(waker) = entry.insert(Break(cevent)) else {
+                unreachable!(
                         "This is a bug in osiris: a non-multishot SQE has recieved more than one associated CQE."
                     );
-                };
-                waker.wake();
-            }
+            };
+            waker.wake();
         }
     }
 
@@ -86,7 +81,6 @@ impl Driver {
         self.event_id
     }
 
-    #[cfg(target_os = "linux")]
     #[inline]
     pub fn poll(&mut self, id: u64, waker: &Waker) -> Poll<cqueue::Entry> {
         let mut entry = self.wakers.entry(id);
@@ -118,7 +112,6 @@ impl Driver {
     ///
     /// Developers must ensure that parameters of the entry (such as buffer) are valid and will
     /// be valid for the entire duration of the operation, otherwise it may cause memory problems.
-    #[cfg(target_os = "linux")]
     pub unsafe fn push(&mut self, entry: squeue::Entry) -> std::io::Result<u64> {
         let id = self.event_id();
         let entry = entry.user_data(id);

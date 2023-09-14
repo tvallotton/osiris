@@ -164,8 +164,14 @@
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::borrow_as_ptr)]
 
+#[cfg(feature = "macros")]
+pub use osiris_macros::{main, test};
 pub use runtime::block_on;
 pub use task::{detach, spawn};
+
+mod utils;
+
+pub mod _priv;
 pub mod buf;
 #[cfg(target_os = "linux")]
 pub mod fs;
@@ -175,8 +181,3 @@ pub mod runtime;
 pub mod sync;
 pub mod task;
 pub mod time;
-#[cfg(feature = "macros")]
-pub use osiris_macros::{main, test};
-#[doc(hidden)]
-pub mod _priv;
-mod utils;

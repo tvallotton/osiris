@@ -61,7 +61,7 @@ pub struct Config {
 }
 
 /// Determines whether the kernel will be notified for events, or whether it will be continuously
-/// polling for events.
+/// polling for them.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub enum Mode {
