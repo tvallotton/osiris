@@ -16,20 +16,6 @@ use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 use crate::reactor::kqueue::event::{submit, submit_once};
 
-macro_rules! syscall {
-    ($name: ident, $($args:expr),*) => {{
-        let res = unsafe {
-            libc::$name($($args),*)
-        };
-        if res < 0 {
-            Err(std::io::Error::last_os_error())
-        } else {
-            Ok(res)
-        }
-
-    }};
-}
-
 const zeroed: libc::kevent = libc::kevent {
     ident: 0,
     filter: 0,

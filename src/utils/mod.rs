@@ -34,3 +34,25 @@ pub struct statx_timestamp {
     pub __statx_timestamp_pad1: [i32; 1],
 }
 pub const STATX_ALL: u32 = 0x0fff;
+
+#[repr(C)]
+pub struct epoll_event {
+    pub events: u32,
+    pub u64: u64,
+}
+
+macro_rules! syscall {
+    ($name: ident, $($args:expr),* $(,)?) => {{
+        let res = unsafe {
+            libc::$name($($args),*)
+        };
+        if res < 0 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(res)
+        }
+
+    }};
+}
+#[allow(warnings)]
+pub(crate) use syscall;

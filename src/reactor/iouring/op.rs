@@ -1,13 +1,13 @@
 #![allow(warnings)]
-use crate::utils::{statx, STATX_ALL};
+use crate::utils::{statx, syscall, STATX_ALL};
 use io_uring::opcode::{
-    self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, Read, Recv, SendMsg, Socket, Statx,
-    Timeout, UnlinkAt, Write,
+    self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, PollAdd, PollRemove, Read, Recv, SendMsg,
+    Socket, Statx, Timeout, UnlinkAt, Write,
 };
 use io_uring::types::{Fd, FsyncFlags, Timespec};
 use libc::{iovec, msghdr, timespec, AT_FDCWD};
 use std::ffi::CString;
-use std::future::poll_fn;
+use std::future::{poll_fn, Future, Pending};
 use std::io::{Error, Result};
 use std::mem::{size_of_val, zeroed};
 use std::net::{Shutdown, SocketAddr};
@@ -84,6 +84,8 @@ pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
     let res = res.map(|r| r.result() as usize);
     (res, buf)
 }
+
+pub async fn epoll_ctl(epfd: i32, fd: i32) {}
 
 /// Performs a statx "system call" on a file or path
 /// The value for `fd` can either be an opened file descriptor
@@ -204,6 +206,47 @@ pub async fn unlink_at(path: CString, flags: i32) -> Result<()> {
     // Safety: the path is protected by submit
     let (cqe, _) = unsafe { submit(sqe, path).await };
     cqe.map(|_| ())
+}
+
+pub async fn poll_add(fd: i32, multi: bool) -> Result<()> {
+    let sqe = PollAdd::new(Fd(fd), 0).multi(multi).build();
+    let (cqe, _) = unsafe { submit(sqe, ()).await };
+    cqe.map(|_| ())
+}
+
+pub async fn write_nonblock(fd: i32, buf: &[u8]) -> Result<usize> {
+    nonblock(fd, || syscall!(write, fd, buf.as_ptr().cast(), buf.len()))
+        .await
+        .map(|written| written as usize)
+}
+
+pub async fn read_nonblock(fd: i32, buf: &mut [u8]) -> Result<usize> {
+    nonblock(fd, || {
+        syscall!(read, fd, buf.as_mut_ptr().cast(), buf.len())
+    })
+    .await
+    .map(|read| read as usize)
+}
+
+pub async fn nonblock<T>(fd: i32, mut f: impl FnMut() -> Result<T>) -> Result<T> {
+    let mut status = Some(poll_add(fd, false));
+
+    poll_fn(|cx| {
+        if let Some(new) = status.as_mut() {
+            let future = unsafe { Pin::new_unchecked(new) };
+            ready!(future.poll(cx));
+        }
+        let res = f();
+        match res {
+            Ok(value) => Poll::Ready(Ok(value)),
+            Err(err) if Some(libc::EAGAIN) == err.raw_os_error() => {
+                status = Some(poll_add(fd, false));
+                return Poll::Pending;
+            }
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    })
+    .await
 }
 
 pub async fn sleep(time: Duration) {

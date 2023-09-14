@@ -7,6 +7,7 @@ use std::os::fd::{FromRawFd, IntoRawFd};
 use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
 use crate::reactor::op;
+use crate::utils::syscall;
 
 use libc::{SOL_SOCKET, SO_REUSEPORT};
 
@@ -82,18 +83,12 @@ impl Socket {
 
     pub fn bind(&self, addr: &SocketAddr) -> Result<()> {
         let (addr, len) = socket_addr(addr);
-        let res = unsafe { libc::bind(self.fd, &addr as *const _ as _, len) };
-        if res == -1 {
-            return Err(Error::last_os_error());
-        }
+        syscall!(bind, self.fd, &addr as *const _ as _, len)?;
         Ok(())
     }
 
     pub fn listen(&self, backlog: u32) -> Result<()> {
-        let res = unsafe { libc::listen(self.fd, backlog as i32) };
-        if res == -1 {
-            return Err(Error::last_os_error());
-        }
+        syscall!(listen, self.fd, backlog as i32)?;
         Ok(())
     }
 
@@ -101,18 +96,14 @@ impl Socket {
         let optval = &1;
         let size = size_of_val(optval) as u32;
         let fd = self.fd;
-        let res = unsafe {
-            libc::setsockopt(
-                fd,
-                SOL_SOCKET,
-                SO_REUSEPORT,
-                optval as *const _ as *const _,
-                size,
-            )
-        };
-        if res == -1 {
-            return Err(Error::last_os_error());
-        }
+        syscall!(
+            setsockopt,
+            fd,
+            SOL_SOCKET,
+            SO_REUSEPORT,
+            optval as *const _ as *const _,
+            size
+        )?;
         Ok(())
     }
 

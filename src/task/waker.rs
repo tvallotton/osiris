@@ -1,7 +1,9 @@
 #![allow(unused_variables)]
 
+use crate::detach;
+
 use super::SharedTask;
-use std::mem::{forget, size_of};
+use std::mem::{forget, size_of, transmute};
 use std::task::{RawWaker, RawWakerVTable, Waker};
 
 pub(crate) fn waker(task: SharedTask) -> Waker {
@@ -34,11 +36,20 @@ const RAW_WAKER_VTABLE: RawWakerVTable = {
             return;
         }
         let sender = task.meta().rt.executor.sender.clone();
-        let waker = task.waker();
-        let mut buf = vec![0; size_of::<Waker>()];
-        buf.as_mut_ptr().cast::<Waker>().write(waker);
-        // detach(sender.write(buf));
-        todo!()
+
+        detach(async move {
+            let waker = task.waker();
+            let mut buf = [0; size_of::<Waker>()];
+            buf.as_mut_ptr().cast::<Waker>().write(waker);
+            sender
+                .write_nonblock(&buf)
+                .await
+                .map_err(|err| {
+                    let _: Waker = transmute(buf);
+                    panic!("failed to wake task: {err}");
+                })
+                .ok();
+        });
     };
 
     let wake_by_ref = |data| {
