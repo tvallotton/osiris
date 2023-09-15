@@ -46,7 +46,6 @@ impl Sender {
 impl Receiver {
     pub async fn read<B: IoBufMut>(&self, buf: B) -> (Result<usize, Error>, B) {
         let fd = self.fd.as_raw_fd();
-        dbg!(fd);
         op::read_at(fd, buf, -1).await
     }
 }

@@ -7,6 +7,7 @@ use io_uring::opcode::{
 use io_uring::types::{Fd, FsyncFlags, Timespec};
 use libc::{iovec, msghdr, timespec, AT_FDCWD};
 use std::ffi::CString;
+use std::fmt::Debug;
 use std::future::{poll_fn, Future, Pending};
 use std::io::{Error, Result};
 use std::mem::{size_of_val, zeroed};
@@ -211,13 +212,16 @@ pub async fn unlink_at(path: CString, flags: i32) -> Result<()> {
 pub async fn poll_add(fd: i32, multi: bool) -> Result<()> {
     let sqe = PollAdd::new(Fd(fd), 0).multi(multi).build();
     let (cqe, _) = unsafe { submit(sqe, ()).await };
+    dbg!("fd is ready");
     cqe.map(|_| ())
 }
 
 pub async fn write_nonblock(fd: i32, buf: &[u8]) -> Result<usize> {
-    nonblock(fd, || syscall!(write, fd, buf.as_ptr().cast(), buf.len()))
-        .await
-        .map(|written| written as usize)
+    nonblock(fd, || {
+        syscall!(write, fd, buf.as_ptr().cast(), buf.len())
+    })
+    .await
+    .map(|written| written as usize)
 }
 
 pub async fn read_nonblock(fd: i32, buf: &mut [u8]) -> Result<usize> {
@@ -228,25 +232,17 @@ pub async fn read_nonblock(fd: i32, buf: &mut [u8]) -> Result<usize> {
     .map(|read| read as usize)
 }
 
-pub async fn nonblock<T>(fd: i32, mut f: impl FnMut() -> Result<T>) -> Result<T> {
-    let mut status = Some(poll_add(fd, false));
-
-    poll_fn(|cx| {
-        if let Some(new) = status.as_mut() {
-            let future = unsafe { Pin::new_unchecked(new) };
-            ready!(future.poll(cx));
-        }
-        let res = f();
-        match res {
-            Ok(value) => Poll::Ready(Ok(value)),
-            Err(err) if Some(libc::EAGAIN) == err.raw_os_error() => {
-                status = Some(poll_add(fd, false));
-                return Poll::Pending;
-            }
-            Err(err) => Poll::Ready(Err(err)),
-        }
-    })
-    .await
+pub async fn nonblock<T: Debug>(fd: i32, mut f: impl FnMut() -> Result<T>) -> Result<T> {
+    loop {
+        let result = f();
+        let Err(err) = result else {
+            return result;
+        };
+        let Some(libc::EAGAIN) = err.raw_os_error() else {
+            return Err(err);
+        };
+        poll_add(fd, true).await;
+    }
 }
 
 pub async fn sleep(time: Duration) {
