@@ -472,7 +472,7 @@ impl File {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn metadata(&self) -> Result<Metadata> {
-        let statx = op::statx(self.fd, None).await?;
+        let statx = op::statx(self.fd, None, 0).await?;
         Ok(Metadata { statx })
     }
 }
