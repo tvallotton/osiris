@@ -1,18 +1,22 @@
 use super::cstr;
 use crate::reactor::op;
 use crate::utils::{statx, statx_timestamp};
-use libc::{S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
+use libc::{AT_SYMLINK_NOFOLLOW, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
 use std::io::{self, Result};
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 pub async fn metadata(path: impl AsRef<Path>) -> Result<Metadata> {
-    _metadata(path.as_ref()).await
+    _metadata(path.as_ref(), 0).await
 }
 
-async fn _metadata(path: &Path) -> std::io::Result<Metadata> {
+pub async fn symlink_metadata(path: impl AsRef<Path>) -> Result<Metadata> {
+    _metadata(path.as_ref(), AT_SYMLINK_NOFOLLOW).await
+}
+
+async fn _metadata(path: &Path, flags: i32) -> std::io::Result<Metadata> {
     let path = cstr(path)?;
-    let statx = op::statx(libc::AT_FDCWD, Some(path)).await?;
+    let statx = op::statx(libc::AT_FDCWD, Some(path), flags).await?;
     Ok(Metadata { statx })
 }
 

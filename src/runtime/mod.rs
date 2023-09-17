@@ -14,7 +14,7 @@
 //! a runtime under the hood.
 //!
 //! # Usage
-//! When no fine tuning is required, the [`osiris::main`] attribute macro can be
+//! When no fine tuning is required, the (`osiris::main`)[`crate::main`] attribute macro can be
 //! used.
 //!
 //! ```no_run

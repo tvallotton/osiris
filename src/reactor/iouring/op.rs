@@ -2,7 +2,7 @@
 use crate::utils::{statx, syscall, STATX_ALL};
 use io_uring::opcode::{
     self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, PollAdd, PollRemove, Read, Recv, SendMsg,
-    Socket, Statx, Timeout, UnlinkAt, Write,
+    Socket, Statx, SymlinkAt, Timeout, UnlinkAt, Write,
 };
 use io_uring::types::{Fd, FsyncFlags, Timespec};
 use libc::{iovec, msghdr, timespec, AT_FDCWD};
@@ -96,7 +96,7 @@ pub async fn epoll_ctl(epfd: i32, fd: i32) {}
 /// ```ignore
 /// let statx = op::statx(libc::AT_FDCWD, Some(path)).await?;
 /// ```
-pub async fn statx(fd: i32, path: Option<CString>) -> Result<statx> {
+pub async fn statx(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
     let pathname = path
         .as_ref()
         .map(|x| x.as_ptr())
@@ -106,9 +106,9 @@ pub async fn statx(fd: i32, path: Option<CString>) -> Result<statx> {
     let sqe = Statx::new(Fd(fd), pathname, statx.as_mut_ptr().cast())
         .mask(STATX_ALL)
         .flags(if path.is_none() {
-            libc::AT_EMPTY_PATH
+            flags & libc::AT_EMPTY_PATH
         } else {
-            0
+            flags
         })
         .build();
     // Safety: both resources are guarded
@@ -217,11 +217,9 @@ pub async fn poll_add(fd: i32, multi: bool) -> Result<()> {
 }
 
 pub async fn write_nonblock(fd: i32, buf: &[u8]) -> Result<usize> {
-    nonblock(fd, || {
-        syscall!(write, fd, buf.as_ptr().cast(), buf.len())
-    })
-    .await
-    .map(|written| written as usize)
+    nonblock(fd, || syscall!(write, fd, buf.as_ptr().cast(), buf.len()))
+        .await
+        .map(|written| written as usize)
 }
 
 pub async fn read_nonblock(fd: i32, buf: &mut [u8]) -> Result<usize> {
@@ -243,6 +241,13 @@ pub async fn nonblock<T: Debug>(fd: i32, mut f: impl FnMut() -> Result<T>) -> Re
         };
         poll_add(fd, true).await;
     }
+}
+
+pub async fn symlink(target: CString, linkpath: CString) -> Result<()> {
+    let cqe = SymlinkAt::new(Fd(libc::AT_FDCWD), target.as_ptr(), linkpath.as_ptr()).build();
+    let (res, _) = unsafe { submit(cqe, (target, linkpath)).await };
+    res?;
+    Ok(())
 }
 
 pub async fn sleep(time: Duration) {

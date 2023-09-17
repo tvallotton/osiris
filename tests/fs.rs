@@ -1,5 +1,8 @@
 #![cfg(target_os = "linux")]
-use osiris::fs::{create_dir, metadata, remove_dir, remove_file, File, OpenOptions};
+use osiris::fs::{
+    self, create_dir, metadata, remove_dir, remove_file, symlink, symlink_metadata, File,
+    OpenOptions,
+};
 
 #[osiris::test]
 async fn test_metadata() {
@@ -89,4 +92,23 @@ async fn test_sync() {
     file.sync_all().await.unwrap();
     file.close().await.unwrap();
     remove_file(path).await.unwrap();
+}
+
+#[osiris::test]
+async fn test_symlinks() {
+    let pwd = std::env::current_dir().unwrap();
+    let path = pwd.join("tests/fs_test_files/test_symlinks.txt");
+    let link = pwd.join("tests/fs_test_files/test_symlinks_link.txt");
+    File::create(&path).await.unwrap();
+    symlink(&path, &link).await.unwrap();
+    let metadata = symlink_metadata(&path).await.unwrap();
+    assert!(!metadata.is_symlink());
+
+    let metadata = symlink_metadata(&link).await.unwrap();
+    assert!(metadata.is_symlink());
+
+    assert!(!fs::metadata(&link).await.unwrap().is_symlink());
+
+    fs::remove_file(path).await.unwrap();
+    fs::remove_file(link).await.unwrap();
 }
