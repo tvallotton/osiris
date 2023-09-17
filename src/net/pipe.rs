@@ -41,6 +41,13 @@ impl Sender {
         let fd = self.fd.as_raw_fd();
         op::write_nonblock(fd, buf).await
     }
+
+    pub fn write_block(&self, buf: &[u8]) -> Result<usize, Error> {
+        let fd = self.fd.as_raw_fd();
+        let len = buf.len();
+        let buf = buf.as_ptr().cast();
+        syscall!(write, fd, buf, len).map(|c| c as _)
+    }
 }
 
 impl Receiver {

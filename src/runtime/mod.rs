@@ -228,7 +228,15 @@ impl Runtime {
     where
         F: Future + 'static,
     {
-        let task = self.executor.spawn(future, self.clone(), false);
+        self._spawn(future, false)
+    }
+
+    /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
+    pub(crate) fn _spawn<F>(&self, future: F, ignore_abort: bool) -> JoinHandle<F::Output>
+    where
+        F: Future + 'static,
+    {
+        let task = self.executor.spawn(future, self.clone(), ignore_abort);
         // Safety: both types are F::Output
         unsafe { JoinHandle::new(task) }
     }

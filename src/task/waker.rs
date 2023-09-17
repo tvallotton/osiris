@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 
-use crate::runtime::current_unwrap;
+use crate::runtime::current;
 
 use super::SharedTask;
 use std::mem::{forget, size_of, transmute};
@@ -29,10 +29,12 @@ unsafe fn wake(data: *const ()) {
     let task = SharedTask::from_raw(data);
     let is_same_thread = task.thread_id() == std::thread::current().id();
     if is_same_thread {
-        wake_local(task);
+        return wake_local(task);
+    }
+    if let Some(rt) = current() {
+        rt._spawn(wake_multithread(task), true);
     } else {
-        let rt = current_unwrap("wake");
-        rt.executor.clone().spawn(wake_multithread(task), rt, true);
+        wake_multithread_blocking(task);
     }
 }
 
@@ -49,6 +51,17 @@ async unsafe fn wake_multithread(task: SharedTask) {
     buf.as_mut_ptr().cast::<Waker>().write(waker);
     let result = sender.write_nonblock(&buf).await;
     if let Err(err) = result {
+        let _: Waker = transmute(buf);
+        panic!("failed to wake task: {err}");
+    }
+}
+
+unsafe fn wake_multithread_blocking(task: SharedTask) {
+    let sender = task.meta().rt.executor.sender.clone();
+    let waker = task.waker();
+    let mut buf = [0; size_of::<Waker>()];
+    buf.as_mut_ptr().cast::<Waker>().write(waker);
+    if let Err(err) = sender.write_block(&buf) {
         let _: Waker = transmute(buf);
         panic!("failed to wake task: {err}");
     }
