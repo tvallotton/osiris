@@ -50,8 +50,8 @@ impl ThreadPool {
             let waker = poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
             let work = work(f, waker);
             self.sender.send(work.clone()).unwrap();
+            self.ensure_workers();
             let dur = self.config.wait_timeout;
-
             loop {
                 match timeout(dur, resolve::<T>(&*work)).await {
                     Err(_) => self.spawn_worker(),
@@ -61,7 +61,7 @@ impl ThreadPool {
         })
     }
 
-    fn ensure_workers(&mut self) {
+    fn ensure_workers(&self) {
         let workers = self.workers.load(Ordering::Acquire);
         if workers < 1 {
             self.spawn_worker()
@@ -70,13 +70,12 @@ impl ThreadPool {
 
     fn spawn_worker(&self) {
         let workers = self.workers.load(Ordering::Acquire);
-        if self.config.max_workers < workers {
+        if workers < self.config.max_workers {
             self.spawn_worker_unchecked()
         }
     }
 
     fn spawn_worker_unchecked(&self) {
-        dbg!();
         let workers = self.workers.clone();
         workers.fetch_add(1, Ordering::Release);
         let receiver = self.receiver.clone();

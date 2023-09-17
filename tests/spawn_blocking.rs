@@ -2,16 +2,16 @@ use osiris::time::sleep;
 use std::time::Duration;
 
 #[osiris::test]
-pub async fn spawn_blocking() {
+pub async fn spawn_blocking_doesnt_block() {
     let time = std::time::Instant::now();
     let task = osiris::task::spawn_blocking(|| {
-        println!("asd");
-        // panic!("asd");
-        // std::thread::sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(1));
+        234523
     });
 
-    sleep(Duration::from_secs(1)).await;
+    sleep(Duration::from_millis(250)).await;
 
     dbg!(time.elapsed());
-    assert!(time.elapsed().as_secs() < 2);
+    assert_eq!(task.await, 234523);
+    assert!(time.elapsed().as_millis() < 1250);
 }
