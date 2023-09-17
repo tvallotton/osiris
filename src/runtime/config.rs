@@ -2,6 +2,7 @@ use super::executor::Executor;
 use super::Runtime;
 use crate::reactor::Reactor;
 use std::rc::Rc;
+use std::time::Duration;
 
 #[cfg(target_os = "linux")]
 use io_uring::IoUring;
@@ -53,6 +54,9 @@ pub struct Config {
     /// Specifically, this determines the initial allocation for the executor queue.
     pub init_capacity: usize,
 
+    /// Configuration for the shared thread pool. Note that the threadpool
+    pub thread_pool: ThreadPoolConfig,
+
     // Do not use this field. Changes related to this field are considered breaking changes.
     // To construct a value of this type use `Config::default()`. Additional fields may be added
     // any time
@@ -80,6 +84,20 @@ pub enum Mode {
     },
 }
 
+#[derive(Clone, Debug)]
+pub struct ThreadPoolConfig {
+    /// Max amount of time a worker may be idle before it exits.
+    /// It defaults to 10s.
+    pub idle_timeout: Duration,
+    /// Max amount of time an element can remain in the queue before
+    /// a new worker is spawned. This timeout will be ignored if the
+    /// maximum number of workers is reached. It defaults to 250ms.
+    pub wait_timeout: Duration,
+    /// Max number of workers that can be spawned by the threadpool.
+    /// It defaults to 256.
+    pub max_workers: u32,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -87,7 +105,18 @@ impl Default for Config {
             #[cfg(target_os = "linux")]
             mode: Mode::default(),
             init_capacity: 1024,
+            thread_pool: ThreadPoolConfig::default(),
             do_not_use_this_field: (),
+        }
+    }
+}
+
+impl Default for ThreadPoolConfig {
+    fn default() -> Self {
+        ThreadPoolConfig {
+            idle_timeout: Duration::from_secs(2),
+            wait_timeout: Duration::from_millis(250),
+            max_workers: 256,
         }
     }
 }

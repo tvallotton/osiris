@@ -72,11 +72,13 @@ use std::rc::Rc;
 use std::task::{Context, Poll};
 
 pub use config::{Config, Mode};
-pub(crate) use globals::{RUNTIME, TASK_ID};
+pub(crate) use globals::{RUNTIME, TASK_ID, THREAD_POOL};
+pub(crate) use thread_pool::ThreadPool;
 
 mod config;
 mod executor;
 mod globals;
+mod thread_pool;
 mod waker;
 
 type TaskId<'a> = &'a Cell<Option<u64>>;

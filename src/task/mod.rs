@@ -6,6 +6,7 @@ use std::task::{Context, Waker};
 
 pub use fns::{detach, id, spawn};
 pub use join_handle::JoinHandle;
+pub use spawn_blocking::spawn_blocking;
 pub(crate) use waker::waker;
 pub use yield_now::yield_now;
 
@@ -14,6 +15,7 @@ mod join_handle;
 mod meta;
 mod raw_task;
 mod shared_task;
+mod spawn_blocking;
 mod task_repr;
 mod waker;
 mod yield_now;
