@@ -1,23 +1,18 @@
-use std::{
-    future::poll_fn,
-    sync::{
-        atomic::{AtomicU32, Ordering},
-        Arc,
-    },
-    task::Poll,
-};
+use std::future::poll_fn;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
+use std::task::Poll;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use self::work::Work;
-use crate::{
-    runtime::thread_pool::work::work,
-    task::{self, JoinHandle},
-    time::timeout,
-};
+use crate::runtime::thread_pool::work::work;
+use crate::task::{self, JoinHandle};
+use crate::time::timeout;
 use std::thread;
 
-use super::{config::ThreadPoolConfig, Config};
+use super::config::ThreadPoolConfig;
+use super::Config;
 
 mod work;
 

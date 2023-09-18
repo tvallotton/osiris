@@ -1,10 +1,8 @@
-use std::{
-    any::Any,
-    mem::replace,
-    panic::{catch_unwind, resume_unwind, AssertUnwindSafe},
-    sync::{Arc, Mutex},
-    task::{Poll, Waker},
-};
+use std::any::Any;
+use std::mem::replace;
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use std::sync::{Arc, Mutex};
+use std::task::{Poll, Waker};
 use Inner::*;
 pub trait Work: Send + Sync {
     fn block(&self);
@@ -37,7 +35,7 @@ where
 
         match replace(&mut *guard, Taken) {
             Panicked(payload) => resume_unwind(payload),
-            Taken => panic!("this is a bug in osiris, we would appreciate if you reported it."),
+            Taken => unreachable!(),
             value @ (Running | Queued(_, _)) => *guard = value,
             Finished(value) => *out = Poll::Ready(value),
         };

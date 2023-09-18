@@ -1,3 +1,4 @@
+#![doc(hidden)]
 //! This is used for internal macros only.
 //! Changes to this API are not considered breaking.
 

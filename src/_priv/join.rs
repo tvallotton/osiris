@@ -18,14 +18,13 @@ use std::task::{Context, Poll, Waker};
 /// and the futures from each expression are multiplexed on the current task.
 ///
 /// When working with async expressions returning `Result`, `join!` will wait
-/// for **all** branches complete regardless if any complete with `Err`. Use
+/// for **all** branches to complete regardless if any complete with `Err`. Use
 /// [`try_join!`] to return early when `Err` is encountered.
 ///
 /// [`try_join!`]: crate::try_join
 ///
 /// # Implementation notes
-/// This `join!` macro implementation has two advantages over other alternative
-/// implementations:
+/// This `join!` macro implementation has two advantages over other alternatives:
 /// 1. It does not poll spuriously (i.e. it doesn't poll branches that weren't woken).
 /// 2. It doesn't require one allocation per future.
 ///
@@ -61,8 +60,8 @@ use std::task::{Context, Poll, Waker};
 /// #[osiris::main]
 /// async fn main() {
 ///     let (first, second) = osiris::join!(
-///         do_stuff_async(),
-///         more_async_work());
+///         do_stuff_async(), more_async_work()
+///     );
 ///
 ///     // do something with the values
 /// }

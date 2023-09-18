@@ -6,22 +6,6 @@ use std::io::{Error, Result};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::ptr::addr_of;
 
-pub(crate) fn socket(addr: SocketAddr, ty: i32, protocol: i32) -> Result<i32> {
-    use libc::*;
-
-    let domain = match addr {
-        SocketAddr::V4(_) => libc::AF_INET,
-        SocketAddr::V6(_) => libc::AF_INET6,
-    };
-
-    let fd = unsafe { socket(domain, ty, protocol) };
-    if fd < 0 {
-        Err(Error::last_os_error())
-    } else {
-        Ok(fd)
-    }
-}
-
 /// A type with the same memory layout as `libc::sockaddr`. Used in converting Rust level
 /// SocketAddr* types into their system representation. The benefit of this specific
 /// type over using `libc::sockaddr_storage` is that this type is exactly as large as it

@@ -738,3 +738,16 @@ fn mpmc_stress_test_bound() {
     })
     .unwrap();
 }
+
+#[test]
+fn mpsc_send_recv_errors() {
+    crate::block_on(async {
+        let (s, r) = channel::<i32>(0);
+        drop(s);
+        assert!(r.recv().await.is_err());
+        let (s, r) = channel::<i32>(0);
+        drop(r);
+        assert!(s.send(0).await.is_err());
+    })
+    .unwrap();
+}

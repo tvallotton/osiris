@@ -36,6 +36,7 @@ io-uring = { version = "0.5.6", optional = true }
 dotenv = "0.15.0"
 osiris = { path = ".", features = ["macros", "io-uring"] }
 tokio = {version = "1.28.2", features=["sync"]}
+futures = "0.3.28"
 
 [build-dependencies]
 cfg_aliases = "0.1.0"

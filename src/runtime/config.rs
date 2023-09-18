@@ -54,7 +54,9 @@ pub struct Config {
     /// Specifically, this determines the initial allocation for the executor queue.
     pub init_capacity: usize,
 
-    /// Configuration for the shared thread pool. Note that the threadpool
+    /// Configuration for the shared thread pool. Note that the threadpool can be configured only once.
+    /// This means that if there are multiple conflicting configurations, whichever is configured first will
+    /// be picked.
     pub thread_pool: ThreadPoolConfig,
 
     // Do not use this field. Changes related to this field are considered breaking changes.
