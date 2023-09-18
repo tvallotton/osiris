@@ -6,10 +6,70 @@ use std::io::{self, Result};
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
+/// Given a path, query the file system to get information about a file,
+/// directory, etc.
+///
+/// This function will traverse symbolic links to query information about the
+/// destination file.
+///
+/// # Platform-specific behavior
+///
+/// This function currently corresponds to the `statx` function on Unix
+/// and the `GetFileInformationByHandle` function on Windows.
+/// Note that, this may change in the future.
+///
+/// # Errors
+///
+/// This function will return an error in the following situations, but is not
+/// limited to just these cases:
+///
+/// * The user lacks permissions to perform `metadata` call on `path`.
+/// * `path` does not exist.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use osiris::fs;
+///
+/// #[osiris::main]
+/// async fn main() -> std::io::Result<()> {
+///     let attr = fs::metadata("/some/file/path.txt").await?;
+///     // inspect attr ...
+///     Ok(())
+/// }
+/// ```
 pub async fn metadata(path: impl AsRef<Path>) -> Result<Metadata> {
     _metadata(path.as_ref(), 0).await
 }
 
+/// Query the metadata about a file without following symlinks.
+///
+/// # Platform-specific behavior
+///
+/// This function currently corresponds to the `lstat` function on Unix
+/// and the `GetFileInformationByHandle` function on Windows.
+/// Note that, this may change in the future.
+///
+/// # Errors
+///
+/// This function will return an error in the following situations, but is not
+/// limited to just these cases:
+///
+/// * The user lacks permissions to perform `metadata` call on `path`.
+/// * `path` does not exist.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use osiris::fs;
+///
+/// #[osiris::main]
+/// async fn main() -> std::io::Result<()> {
+///     let attr = fs::symlink_metadata("/some/file/path.txt").await?;
+///     // inspect attr ...
+///     Ok(())
+/// }
+/// ```
 pub async fn symlink_metadata(path: impl AsRef<Path>) -> Result<Metadata> {
     _metadata(path.as_ref(), AT_SYMLINK_NOFOLLOW).await
 }

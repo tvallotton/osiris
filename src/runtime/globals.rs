@@ -1,8 +1,7 @@
-use super::{thread_pool::ThreadPool, Runtime};
-use std::{
-    cell::{Cell, RefCell},
-    sync::OnceLock,
-};
+use super::thread_pool::ThreadPool;
+use super::Runtime;
+use std::cell::{Cell, RefCell};
+use std::sync::OnceLock;
 
 thread_local! {
     /// This is the runtime thread local. It determines in which runtime context we are currently in.
