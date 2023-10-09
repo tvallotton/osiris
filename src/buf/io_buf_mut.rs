@@ -11,7 +11,7 @@ use crate::buf::IoBuf;
 /// region. While the runtime holds ownership to a buffer, the pointer returned
 /// by `stable_mut_ptr` must remain valid even if the `IoBufMut` value is moved.
 pub unsafe trait IoBufMut: IoBuf {
-    /// Returns a raw mutable pointer to the vector’s buffer.
+    /// Returns a raw mutable pointer to the vector's buffer.
     ///
     /// This method is to be used by the `osiris` runtime and it is not
     /// expected for users to call it directly.

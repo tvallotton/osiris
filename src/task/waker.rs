@@ -32,7 +32,7 @@ unsafe fn wake(data: *const ()) {
         return wake_local(task);
     }
     if let Some(rt) = current() {
-        rt._spawn(wake_multithread(task), true);
+        rt._spawn(wake_multithread(task), true).detach();
     } else {
         wake_multithread_blocking(task);
     }

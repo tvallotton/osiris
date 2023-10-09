@@ -1,3 +1,13 @@
+//! TCP/UDP bindings for `osiris`.
+//!
+//! This module contains the TCP/UDP/Unix networking types, similar to the standard
+//! library, which can be used to implement networking protocols.
+//!
+//! # Organization
+//!
+//! * [`TcpListener`] and [`TcpStream`] provide functionality for communication over TCP
+//! * [`UdpSocket`] provides functionality for communication over UDP
+
 #[cfg(io_uring)]
 mod dns;
 pub(crate) mod pipe;

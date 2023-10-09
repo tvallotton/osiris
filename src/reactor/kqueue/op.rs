@@ -3,11 +3,14 @@
 
 use std::cell::Cell;
 use std::convert::Infallible;
+use std::ffi::CString;
 use std::io::{Error, Result};
 
 use std::mem::size_of_val;
 use std::net::{Shutdown, SocketAddr};
+use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
+use std::slice;
 use std::time::{Duration, Instant};
 
 use libc::{iovec, kevent, msghdr, EVFILT_READ, EVFILT_WRITE, EV_ADD, EV_ENABLE, EV_ONESHOT};
@@ -15,6 +18,8 @@ use libc::{iovec, kevent, msghdr, EVFILT_READ, EVFILT_WRITE, EV_ADD, EV_ENABLE, 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 use crate::reactor::kqueue::event::{submit, submit_once};
+use crate::task::spawn_blocking;
+use crate::utils::syscall;
 
 const zeroed: libc::kevent = libc::kevent {
     ident: 0,
@@ -48,16 +53,8 @@ pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usi
 
 /// Attempts to read from a file descriptor into the buffer
 pub async fn write_at<B: IoBuf>(fd: i32, buf: B, _pos: i64) -> (Result<usize>, B) {
-    let mut event = zeroed;
-    event.ident = fd as _;
-    event.filter = EVFILT_WRITE;
-    event.flags = EV_ENABLE | EV_ADD;
-
-    let res = submit(event, || {
-        syscall!(write, fd, buf.stable_ptr() as _, buf.bytes_init())
-    })
-    .await;
-    (res.map(|len| len as _), buf)
+    let slice = unsafe { slice::from_raw_parts(buf.stable_ptr(), buf.bytes_init()) };
+    (write_nonblock(fd, slice).await, buf)
 }
 
 pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
@@ -163,6 +160,25 @@ fn event_id() -> usize {
         value
     })
 }
+
+pub async fn write_nonblock(fd: i32, buf: &[u8]) -> Result<usize> {
+    let mut event = zeroed;
+    event.ident = fd as _;
+    event.filter = EVFILT_WRITE;
+    event.flags = EV_ENABLE | EV_ADD;
+
+    let len: usize = buf.len();
+    let buf = buf.as_ptr() as _;
+    let res = submit(event, || syscall!(write, fd, buf, len)).await;
+    Ok(res? as usize)
+}
+
+pub async fn symlink(original: impl Into<PathBuf>, link: impl Into<PathBuf>) -> Result<()> {
+    let original: PathBuf = original.into();
+    let link: PathBuf = link.into();
+    spawn_blocking(move || std::os::unix::fs::symlink(original, link)).await
+}
+
 /// Submits a timeout operation to the queue
 pub async fn sleep(dur: Duration) {
     let mut event = zeroed;
