@@ -224,6 +224,7 @@ impl Runtime {
     }
 
     /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
+    #[must_use = "This task is immediatly cancelled after spawn. osiris tasks are cancelled on drop, you may want to `.detach()` it."]
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
     where
         F: Future + 'static,

@@ -310,3 +310,21 @@ fn mutex_stress_test2() {
     })
     .unwrap();
 }
+
+#[test]
+fn default_and_fmt() {
+    crate::block_on(async {
+        let number = Mutex::<i32>::default();
+        assert_eq!(*number.lock().await, 0);
+
+        let guard = number.try_lock().unwrap();
+
+        assert!(number.try_lock().is_err());
+        format!("{} {:?}", number.try_lock().unwrap_err(), number.try_lock());
+
+        assert!(!format!("{number:?}").contains("unlocked"));
+        drop(guard);
+        assert!(format!("{number:?}").contains("unlocked"));
+    })
+    .ok();
+}

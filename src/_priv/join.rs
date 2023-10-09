@@ -213,3 +213,22 @@ implement_future_for_tuple! {
 
     ]
 }
+
+#[test]
+fn test_join() {
+    use crate::{block_on, task};
+    block_on(async {
+        join!(
+            async {
+                task::yield_now().await;
+                task::yield_now().await;
+            },
+            task::yield_now()
+        );
+        join!(task::yield_now(), async {
+            task::yield_now().await;
+            task::yield_now().await;
+        },);
+    })
+    .unwrap();
+}

@@ -1,7 +1,10 @@
+use std::any::Any;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+use crate::utils::futures::catch_unwind;
 
 use super::Task;
 
@@ -46,6 +49,15 @@ impl<T> JoinHandle<T> {
     /// If the cancelled task panicked, or if a task attempts to cancel itself.
     pub fn abort(mut self) {
         self.detached = false;
+    }
+
+    /// Joins the task catching any propagated panics.
+    ///
+    /// # Errors
+    /// Returns an error if the task panicked, with the panic
+    /// payload represented as a `Box<dyn Any + Send>`.
+    pub async fn catch_unwind(self) -> Result<T, Box<dyn Any + Send + 'static>> {
+        catch_unwind(self).await
     }
 }
 

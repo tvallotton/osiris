@@ -228,3 +228,34 @@ implement_future_for_tuple! {
         'a28,'a29,'a30,'a31,
     ]
 }
+
+#[test]
+fn test_join() {
+    use crate::{block_on, task};
+    const OK: Result<(), ()> = Ok(());
+    const ERR: Result<(), ()> = Err(());
+    block_on(async {
+        try_join!(
+            async {
+                task::yield_now().await;
+                task::yield_now().await;
+                OK
+            },
+            async { OK }
+        )
+        .ok();
+        try_join!(async { OK }, async {
+            task::yield_now().await;
+            task::yield_now().await;
+            ERR
+        },)
+        .ok();
+        try_join!(async { ERR }, async {
+            task::yield_now().await;
+            task::yield_now().await;
+            OK
+        },)
+        .ok();
+    })
+    .unwrap();
+}

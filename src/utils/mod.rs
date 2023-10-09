@@ -1,4 +1,7 @@
 #![allow(non_camel_case_types)]
+
+pub(crate) mod futures;
+
 /// We need to copy this because libc::statx
 /// is not available in musl
 #[derive(Clone, Copy)]
