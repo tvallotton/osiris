@@ -3,6 +3,9 @@ use cfg_aliases::cfg_aliases;
 fn main() {
     // Setup cfg aliases
     cfg_aliases! {
+        io_uring: {
+            feature = "io-uring"
+        },
         kqueue: {
             any(
                 target_os = "macos",
