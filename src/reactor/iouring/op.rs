@@ -106,7 +106,7 @@ pub async fn statx(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> 
     let sqe = Statx::new(Fd(fd), pathname, statx.as_mut_ptr().cast())
         .mask(STATX_ALL)
         .flags(if path.is_none() {
-            flags & libc::AT_EMPTY_PATH
+            flags | libc::AT_EMPTY_PATH
         } else {
             flags
         })
