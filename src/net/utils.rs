@@ -188,7 +188,7 @@ impl LineReader {
     async fn fetch(&mut self) -> Result<()> {
         self.seek += self.char;
         self.char = 0;
-        let (res, buf) = self.file.read_at(take(&mut self.buf), self.seek as _).await;
+        let (res, buf) = self.file.read_at(std::mem::take(&mut self.buf), self.seek as _).await;
         self.buf = buf;
         unsafe { self.buf.set_len(res?) };
         Ok(())
