@@ -30,7 +30,7 @@ pub async fn close(fd: i32) -> Result<()> {
 /// Attempts to read from a file descriptor into the buffer
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, pos: i64) -> (Result<usize>, B) {
     let sqe = Read::new(Fd(fd), buf.stable_mut_ptr(), buf.bytes_total() as _)
-        .offset64(pos)
+        .offset(pos as _)
         .build();
     let (cqe, mut buf) = unsafe { submit(sqe, buf).await };
 
@@ -48,7 +48,7 @@ pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, pos: i64) -> (Result<usiz
 /// Attempts to write to a file descriptor
 pub async fn write_at<B: IoBuf>(fd: i32, buf: B, pos: i64) -> (Result<usize>, B) {
     let sqe = Write::new(Fd(fd), buf.stable_ptr(), buf.bytes_init() as _)
-        .offset64(pos)
+        .offset(pos as _)
         .build();
     let (cqe, buf) = unsafe { submit(sqe, buf).await };
     (cqe.map(|cqe| cqe.result() as usize), buf)
