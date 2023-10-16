@@ -7,7 +7,7 @@
 //! * I/O primitives for [networking](net), [file system access](fs), and [timers/timeout operations](time).
 //!
 //! # Thread per core
-//! Osiris follows the thread per core architecture, avoiding thread synchronization whenever possible.
+//! Osiris follows a share-nothing architecture, avoiding thread synchronization whenever possible.
 //! This means, that most types are `!Send` and `!Sync`. By default, when using the [`main`] macro the
 //! application is single threaded. It can be made multithreaded by settning the `scale` parameter:
 //! ```no_run
@@ -140,6 +140,7 @@
 //! Any future can be cancelled after a timeout with the [`timeout`](`time::timeout::timeout`) function.
 //! ```
 //! use osiris::time::{timeout, sleep, Duration};
+//!
 //! #[osiris::main]
 //! async fn main() {
 //!     let future = async {

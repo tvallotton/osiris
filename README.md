@@ -1,5 +1,5 @@
 # Osiris 
-A runtime for building async applications with a thread per core architecture
+A runtime for building async applications with a share-nothing architecture
 and a completion I/O reactor. 
 
 ## Licenses

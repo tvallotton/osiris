@@ -131,8 +131,8 @@
 //! on a thread that is also running other tasks would block the entire thread,
 //! preventing other tasks from running.
 //!
-//! Instead, Osiris provides two APIs for running blocking operations in an
-//! asynchronous context: [`task::spawn_blocking`] and [`task::block_in_place`].
+//! Instead, Osiris provides [`task::spawn_blocking`] to allow the execution of
+//! blocking code in an appropriate thread.
 //!
 //! Be aware that if you call a non-async method from async code, that non-async
 //! method is still inside the asynchronous context, so you should also avoid
@@ -198,8 +198,7 @@
 //!
 //! ```
 //!
-//! [`task::spawn_blocking`]: crate::task::spawn_blocking
-//! [`task::block_in_place`]: crate::task::block_in_place
+//! [`task::spawn_blocking`]: crate::task::spawn_blocking()
 //! [rt-multi-thread]: ../runtime/index.html#threaded-scheduler
 //! [`task::yield_now`]: crate::task::yield_now()
 //! [`thread::yield_now`]: std::thread::yield_now
