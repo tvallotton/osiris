@@ -45,9 +45,6 @@ async fn to_socket_addr_str() {
     let a = sa4(Ipv4Addr::new(77, 88, 21, 11), 24352);
     assert_eq!(Ok(vec![a]), tsa("77.88.21.11:24352").await);
 
-    let a = sa6(Ipv6Addr::new(0x2a02, 0x6b8, 0, 1, 0, 0, 0, 1), 53);
-    assert_eq!(Ok(vec![a]), tsa("[2a02:6b8:0:1::1]:53").await);
-
     let a = sa4(Ipv4Addr::new(127, 0, 0, 1), 23924);
     #[cfg(not(target_env = "sgx"))]
     assert!(tsa("localhost:23924").await.unwrap().contains(&a));

@@ -158,6 +158,22 @@ unsafe impl IoBuf for Rc<[u8]> {
         self.len()
     }
 }
+
+// Safety: Rc are stable pointers
+unsafe impl<const N: usize> IoBuf for Rc<[u8; N]> {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+
+    fn bytes_init(&self) -> usize {
+        self.len()
+    }
+
+    fn bytes_total(&self) -> usize {
+        self.len()
+    }
+}
+
 // Safety: Rc are stable pointers
 unsafe impl IoBuf for Rc<str> {
     fn stable_ptr(&self) -> *const u8 {
@@ -198,6 +214,31 @@ unsafe impl IoBuf for Box<str> {
 }
 // Safety: Boxes are stable pointers
 unsafe impl IoBuf for Box<[u8]> {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+    fn bytes_init(&self) -> usize {
+        self.len()
+    }
+    fn bytes_total(&self) -> usize {
+        self.len()
+    }
+}
+// Safety: String is a stable pointer
+unsafe impl IoBuf for String {
+    fn stable_ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+    fn bytes_init(&self) -> usize {
+        self.len()
+    }
+    fn bytes_total(&self) -> usize {
+        self.capacity()
+    }
+}
+
+// Safety: Boxes are stable pointers
+unsafe impl<const N: usize> IoBuf for Box<[u8; N]> {
     fn stable_ptr(&self) -> *const u8 {
         self.as_ptr()
     }

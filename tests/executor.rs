@@ -160,6 +160,12 @@ fn detach_handle_panic() {
     .unwrap();
 }
 
+#[osiris::test]
+async fn task_catch_unwind() {
+    let res = spawn(async { panic!() }).catch_unwind().await;
+    assert!(res.is_err());
+}
+
 // this function test that a function cannot abort itself
 // currently the behavior is that it won't propagate to any other task
 // so the program will continue as normal.
