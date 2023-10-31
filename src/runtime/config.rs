@@ -4,7 +4,7 @@ use crate::reactor::Reactor;
 use std::rc::Rc;
 use std::time::Duration;
 
-#[cfg(target_os = "linux")]
+#[cfg(io_uring)]
 use io_uring::IoUring;
 
 /// Configuration struct for an osiris runtime.
@@ -140,7 +140,7 @@ impl Config {
         Ok(rt)
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(io_uring)]
     pub(crate) fn io_uring(self) -> std::io::Result<IoUring> {
         let mut builder = IoUring::builder();
         if let Mode::Polling { idle_timeout } = self.mode {

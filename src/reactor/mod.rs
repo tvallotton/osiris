@@ -1,14 +1,17 @@
 use std::cell::{RefCell, RefMut};
 use std::io;
 use std::rc::Rc;
-#[cfg(target_os = "linux")]
+#[cfg(io_uring)]
 use ::{
     io_uring::{cqueue, squeue::Entry},
     std::task::{Context, Poll},
 };
 
-#[cfg(target_os = "linux")]
+#[cfg(io_uring)]
 pub(crate) use iouring::{op, Driver};
+
+#[cfg(not(io_uring))]
+pub(crate) use poll::{op, Driver, Event};
 
 #[cfg(kqueue)]
 pub(crate) use kqueue::{op, Driver};
@@ -17,10 +20,17 @@ use crate::runtime::Config;
 
 // #[cfg(target_os = "linux")]
 // mod epoll;
-#[cfg(target_os = "linux")]
+#[cfg(io_uring)]
 mod iouring;
+
 #[cfg(target_os = "macos")]
 mod kqueue;
+
+#[cfg(not(io_uring))]
+mod nonblocking;
+
+#[cfg(target_family = "unix")]
+mod poll;
 
 // mod wakerstore;
 
@@ -59,7 +69,7 @@ impl Reactor {
     ///
     /// When polled, the driver will update the waker for the IO event, and
     /// will either return pending, or the `cqueue::Entry` if the event is ready.
-    #[cfg(target_os = "linux")]
+    #[cfg(io_uring)]
     #[inline]
     pub fn poll(&self, id: u64, cx: &mut Context) -> Poll<cqueue::Entry> {
         self.0.borrow_mut().poll(id, cx.waker())
@@ -72,7 +82,7 @@ impl Reactor {
     ///
     /// Developers must ensure that parameters of the entry (such as buffer) are valid and will
     /// be valid for the entire duration of the operation, otherwise it may cause memory problems.
-    #[cfg(target_os = "linux")]
+    #[cfg(io_uring)]
     pub unsafe fn push(&self, entry: Entry) -> std::io::Result<u64> {
         // Safety: Invariants must be upheld by the caller.
         unsafe { self.0.borrow_mut().push(entry) }

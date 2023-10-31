@@ -1,29 +1,19 @@
+use crate::reactor::{self, Event};
 use std::future::poll_fn;
 use std::io::{self};
 use std::task::Poll;
 
-use crate::reactor::{self};
+pub struct Guard(u64);
 
-pub(crate) use libc::kevent as Event;
-
-pub(crate) fn id(event: Event) -> (usize, i16) {
-    (event.ident, event.filter)
-}
-
-pub struct Guard(libc::kevent);
 impl Drop for Guard {
     fn drop(&mut self) {
         let reactor = reactor::current();
-        reactor.driver().wakers.remove(&id(self.0));
-        // we don't delete the event
-        // from the queue because some
-        // other task may have also submitted
-        // and event, and they would end up
-        // waiting forever
+        let mut driver = reactor.driver();
+        driver.remove_waker(self.0);
     }
 }
 
-pub async fn wait(kevent: Event) -> io::Result<()> {
+pub async fn wait(event: Event) -> io::Result<()> {
     let mut submitted = false;
     let mut guard = None;
     poll_fn(|cx| {
@@ -31,21 +21,19 @@ pub async fn wait(kevent: Event) -> io::Result<()> {
             return Poll::Ready(Ok(()));
         }
         submitted = true;
-        reactor::current()
-            .driver()
-            .push(kevent, cx.waker().clone())?;
-        guard = Some(Guard(kevent));
+        let id = reactor::current().driver().push(event, cx.waker().clone());
+        guard = Some(Guard(id));
         Poll::Pending
     })
     .await
 }
 
-pub async fn submit<F, T>(kevent: Event, mut f: F) -> io::Result<T>
+pub async fn submit<F, T>(event: libc::pollfd, mut f: F) -> io::Result<T>
 where
     F: FnMut() -> io::Result<T>,
 {
     loop {
-        wait(kevent).await?;
+        wait(event).await?;
         match f() {
             Err(err) => {
                 let Some(libc::EAGAIN | libc::EINPROGRESS) = err.raw_os_error() else {
@@ -57,7 +45,10 @@ where
     }
 }
 
-pub async fn submit_once<F>(kevent: Event, f: F) -> io::Result<()>
+/// Note: this function is used for connect mostly.
+/// In connect the system call needs to be performed before the wait, however,
+/// after the wait,
+pub async fn submit_once<F>(event: libc::pollfd, f: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<i32>,
 {
@@ -66,7 +57,7 @@ where
             let Some(libc::EAGAIN | libc::EINPROGRESS) = err.raw_os_error() else {
                 return Err(err);
             };
-            wait(kevent).await
+            wait(event).await
         }
         _ => Ok(()),
     }

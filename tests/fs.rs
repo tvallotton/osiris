@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(io_uring)]
 use osiris::fs::{
     self, create_dir, metadata, remove_dir, remove_file, symlink, symlink_metadata, File,
     OpenOptions,

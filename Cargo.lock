@@ -294,6 +294,7 @@ dependencies = [
  "osiris",
  "osiris-macros",
  "pin-project-lite",
+ "slab",
  "tokio",
 ]
 

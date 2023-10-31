@@ -36,5 +36,5 @@ pub mod timeout;
 /// This future panics if called outside the context of
 /// an osiris runtime.
 pub async fn sleep(time: Duration) {
-    op::sleep(time).await
+    op::sleep(time).await.unwrap();
 }

@@ -6,7 +6,7 @@ use std::{
     task::Waker,
 };
 
-use crate::runtime::Config;
+use crate::{runtime::Config, utils::syscall};
 
 use self::event::id;
 mod event;
@@ -61,15 +61,9 @@ impl Driver {
         let eventlist  = self.queue.as_mut_ptr();
         let nevents    = self.queue.capacity() as i32;
         let nchanges   = self.queue.len() as i32;
-        let len        = unsafe {
-            libc::kevent(kq, changelist, nchanges, eventlist, nevents, timeout)
-        };
-        if len < 0 {
-             Err(Error::last_os_error())
-        } else {
-            unsafe{ self.queue.set_len(len as usize) };
-            Ok(())
-        }
+        let len        = syscall!(kevent, kq, changelist, nchanges, eventlist, nevents, timeout)?;
+        unsafe{ self.queue.set_len(len as usize) };
+        Ok(())
     }
 
     /// wakes up any tasks listening for IO events.

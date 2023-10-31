@@ -104,7 +104,7 @@
 //! ## File system
 //! Unlike nonblocking based runtimes, Osiris offers true asynchronous file I/O
 //! ```
-//! # #[cfg(target_os = "linux")]
+//! # #[cfg(io_uring)]
 //! # {
 //! use osiris::fs::read_to_string;
 //!
@@ -174,7 +174,7 @@ mod utils;
 
 pub mod _priv;
 pub mod buf;
-#[cfg(target_os = "linux")]
+#[cfg(io_uring)]
 pub mod fs;
 pub mod net;
 mod reactor;
