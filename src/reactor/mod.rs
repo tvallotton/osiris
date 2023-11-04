@@ -29,7 +29,7 @@ mod kqueue;
 #[cfg(not(io_uring))]
 mod nonblocking;
 
-#[cfg(target_family = "unix")]
+#[cfg(not(io_uring))]
 mod poll;
 
 // mod wakerstore;

@@ -33,12 +33,12 @@ where
     F: FnMut() -> io::Result<T>,
 {
     loop {
-        wait(event).await?;
         match f() {
             Err(err) => {
                 let Some(libc::EAGAIN | libc::EINPROGRESS) = err.raw_os_error() else {
                     return Err(err);
                 };
+                wait(event).await?;
             }
             result => return result,
         }

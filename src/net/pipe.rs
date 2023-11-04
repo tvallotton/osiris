@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use std::io::Error;
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
@@ -20,6 +21,10 @@ pub(crate) fn pipe() -> Result<(Sender, Receiver), Error> {
 
     syscall!(pipe, &mut fds[0])?;
 
+    let options = syscall!(fcntl, fds[0], libc::F_GETFL)?;
+    op::make_nonblocking(fds[0])?;
+    op::make_nonblocking(fds[1])?;
+
     let sender = Sender {
         fd: unsafe { OwnedFd::from_raw_fd(fds[1]) },
     };
@@ -33,13 +38,12 @@ pub(crate) fn pipe() -> Result<(Sender, Receiver), Error> {
 impl Sender {
     pub async fn write<B: IoBuf>(&self, buf: B) -> (Result<usize, Error>, B) {
         let fd = self.fd.as_raw_fd();
-        dbg!(fd);
         op::write_at(fd, buf, -1).await
     }
 
     pub async fn write_nonblock(&self, buf: &[u8]) -> Result<usize, Error> {
         let fd = self.fd.as_raw_fd();
-        op::write_nonblock(fd, buf).await
+        op::write_nonblock(fd, buf.as_ptr(), buf.len()).await
     }
 
     pub fn write_block(&self, buf: &[u8]) -> Result<usize, Error> {

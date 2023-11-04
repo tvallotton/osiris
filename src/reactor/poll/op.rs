@@ -21,6 +21,8 @@ use crate::reactor::nonblocking::{submit, submit_once};
 use crate::task::spawn_blocking;
 use crate::utils::syscall;
 
+pub use crate::reactor::nonblocking::op::*;
+
 const zeroed: pollfd = pollfd {
     fd: 0,
     events: 0,
@@ -37,13 +39,19 @@ pub fn socket(domain: i32, ty: i32, proto: i32, _: Option<Infallible>) -> Result
 /// Attempts to read from a file descriptor into the buffer
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usize>, B) {
     let slice = unsafe { slice::from_raw_parts_mut(buf.stable_mut_ptr(), buf.bytes_init()) };
-    (read_nonblock(fd, slice).await, buf)
+    let result = read_nonblock(fd, buf.stable_mut_ptr(), buf.bytes_total())
+        .await
+        .and_then(|read| unsafe {
+            buf.set_init(read.max(buf.bytes_init()));
+            Ok(read)
+        });
+    (result, buf)
 }
 
 /// Attempts to read from a file descriptor into the buffer
 pub async fn write_at<B: IoBuf>(fd: i32, buf: B, _pos: i64) -> (Result<usize>, B) {
-    let slice = unsafe { slice::from_raw_parts(buf.stable_ptr(), buf.bytes_init()) };
-    (write_nonblock(fd, slice).await, buf)
+    let size = write_nonblock(fd, buf.stable_ptr(), buf.bytes_init()).await;
+    (size, buf)
 }
 
 pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
@@ -151,28 +159,24 @@ fn event_id() -> usize {
     })
 }
 
-pub async fn read_nonblock(fd: i32, buf: &mut [u8]) -> Result<usize> {
+pub async fn read_nonblock(fd: i32, buf: *mut u8, len: usize) -> Result<usize> {
     let mut event = pollfd {
         fd,
         events: POLLIN,
         revents: 0,
     };
-    let len: usize = buf.len();
-    let buf = buf.as_ptr() as _;
-    let res = submit(event, || syscall!(read, fd, buf, len)).await;
+    let res = submit(event, || syscall!(read, fd, buf.cast(), len)).await;
     Ok(res? as usize)
 }
 
-pub async fn write_nonblock(fd: i32, buf: &[u8]) -> Result<usize> {
+pub async fn write_nonblock(fd: i32, buf: *const u8, len: usize) -> Result<usize> {
     let mut event = pollfd {
         fd,
         events: POLLOUT,
         revents: 0,
     };
-    let len: usize = buf.len();
-    let buf = buf.as_ptr() as _;
-    let res = submit(event, || syscall!(write, fd, buf, len)).await;
-    Ok(res? as usize)
+    let res = submit(event, || syscall!(write, fd, buf.cast(), len)).await?;
+    Ok(res as usize)
 }
 
 pub async fn symlink(original: impl Into<PathBuf>, link: impl Into<PathBuf>) -> Result<()> {

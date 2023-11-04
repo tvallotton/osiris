@@ -19,3 +19,9 @@ pub async fn fs_write<B: IoBuf + Send + Sync>(fd: i32, buf: B) -> (Result<usize>
     })
     .await
 }
+
+pub fn make_nonblocking(fd: i32) -> Result<()> {
+    let options = syscall!(fcntl, fd, libc::F_GETFL)?;
+    syscall!(fcntl, fd, libc::F_SETFL, options | libc::O_NONBLOCK)?;
+    Ok(())
+}

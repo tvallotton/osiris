@@ -250,7 +250,7 @@ pub async fn symlink(target: CString, linkpath: CString) -> Result<()> {
     Ok(())
 }
 
-pub async fn sleep(time: Duration) {
+pub async fn sleep(time: Duration) -> Result<()> {
     let timespec = Timespec::new()
         .sec(time.as_secs())
         .nsec(time.subsec_nanos());
@@ -262,4 +262,5 @@ pub async fn sleep(time: Duration) {
     let (mut event, _) = unsafe { submit(entry, timespec).await };
     let err = event.unwrap_err();
     assert_eq!(err.raw_os_error().unwrap(), 62, "{:?}", err);
+    Ok(())
 }
