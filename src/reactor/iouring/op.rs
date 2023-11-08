@@ -21,7 +21,7 @@ use super::event::submit;
 use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 
-pub use super::super::utils::{make_blocking, make_nonblocking};
+pub use super::super::utils::{make_blocking, make_nonblocking, socket};
 pub use read_at as fs_read;
 pub use write_at as fs_write;
 
@@ -67,7 +67,7 @@ pub async fn fsync(fd: i32, flags: FsyncFlags) -> Result<i32> {
 }
 
 /// Creates a socket
-pub async fn socket(
+pub async fn async_socket(
     domain: i32,
     ty: i32,
     proto: i32,
@@ -226,12 +226,10 @@ pub async fn write_nonblock(fd: i32, buf: *const u8, len: usize) -> Result<usize
         .map(|written| written as usize)
 }
 
-pub async fn read_nonblock(fd: i32, buf: &mut [u8]) -> Result<usize> {
-    nonblock(fd, || {
-        syscall!(read, fd, buf.as_mut_ptr().cast(), buf.len())
-    })
-    .await
-    .map(|read| read as usize)
+pub async fn read_nonblock(fd: i32, buf: *mut u8, len: usize) -> Result<usize> {
+    nonblock(fd, || syscall!(read, fd, buf.cast(), len))
+        .await
+        .map(|read| read as usize)
 }
 
 pub async fn nonblock<T: Debug>(fd: i32, mut f: impl FnMut() -> Result<T>) -> Result<T> {

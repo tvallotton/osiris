@@ -46,7 +46,7 @@ pub struct Socket {
 
 impl Socket {
     /// Creates a new socket
-    pub fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
+    pub async fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
         let fd = op::socket(domain as i32, ty as i32, proto as _, None)?;
         Ok(Self {
             fd: fd.into_raw_fd(),

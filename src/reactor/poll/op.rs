@@ -29,13 +29,6 @@ const zeroed: pollfd = pollfd {
     revents: 0,
 };
 
-pub fn socket(domain: i32, ty: i32, proto: i32, _: Option<Infallible>) -> Result<OwnedFd> {
-    let fd = syscall!(socket, domain as _, ty as i32, proto as _)?;
-    let fd = unsafe { OwnedFd::from_raw_fd(fd) };
-    make_nonblocking(&fd)?;
-    Ok(fd)
-}
-
 /// Attempts to read from a file descriptor into the buffer
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usize>, B) {
     let result = read_nonblock(fd, buf.stable_mut_ptr(), buf.bytes_total())

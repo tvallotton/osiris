@@ -105,7 +105,7 @@ impl TcpListener {
     pub async fn bind<A: ToSocketAddrs>(addr: A) -> Result<TcpListener> {
         try_until_success(addr, |addr| async move {
             let domain = Domain::from(addr);
-            let socket = Socket::new(domain, Type::STREAM, Protocol::TCP)?;
+            let socket = Socket::new(domain, Type::STREAM, Protocol::TCP).await?;
             socket.set_reuseport()?;
             socket.bind(&addr)?;
             socket.listen(8192)?;
