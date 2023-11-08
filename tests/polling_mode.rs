@@ -1,6 +1,9 @@
+use std::time::Duration;
+
 use osiris::join;
 use osiris::net::{TcpListener, TcpStream};
 use osiris::runtime::{Config, Mode};
+use osiris::time::sleep;
 
 const CLIENT_MSG: &[u8] = b"client message";
 const SERVER_MSG: &[u8] = b"server message";
@@ -22,7 +25,8 @@ fn polling_mode() {
 }
 
 async fn client() {
-    let stream = TcpStream::connect("localhost:9000").await.unwrap();
+    sleep(Duration::from_millis(10)).await;
+    let stream = TcpStream::connect("localhost:9080").await.unwrap();
 
     stream.write(CLIENT_MSG).await.0.unwrap();
 
@@ -33,7 +37,7 @@ async fn client() {
 }
 
 async fn server() {
-    let listener = TcpListener::bind("localhost:9000").await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:9080").await.unwrap();
     let (client, _) = listener.accept().await.unwrap();
     let buf = vec![0; 20];
 

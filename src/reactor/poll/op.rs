@@ -5,7 +5,9 @@ use std::cell::Cell;
 use std::convert::Infallible;
 use std::ffi::CString;
 use std::io::{Error, Result};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
+use libc::{iovec, msghdr, pollfd, CLOCK_BOOTTIME, POLLIN, POLLOUT};
 use std::mem::size_of_val;
 use std::net::{Shutdown, SocketAddr};
 use std::path::{Path, PathBuf};
@@ -13,15 +15,13 @@ use std::ptr::null_mut;
 use std::slice;
 use std::time::{Duration, Instant};
 
-use libc::{iovec, msghdr, pollfd, CLOCK_BOOTTIME, POLLIN, POLLOUT};
-
 use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 use crate::reactor::nonblocking::{submit, submit_once};
 use crate::task::spawn_blocking;
 use crate::utils::syscall;
 
-pub use crate::reactor::nonblocking::op::*;
+pub use crate::reactor::utils::*;
 
 const zeroed: pollfd = pollfd {
     fd: 0,
@@ -29,16 +29,15 @@ const zeroed: pollfd = pollfd {
     revents: 0,
 };
 
-pub fn socket(domain: i32, ty: i32, proto: i32, _: Option<Infallible>) -> Result<i32> {
-    let fd = unsafe { libc::socket(domain as _, ty as i32, proto as _) };
-    let flags = syscall!(fcntl, fd, libc::F_GETFL)?;
-    let flags = syscall!(fcntl, fd, libc::F_SETFL, flags | libc::O_NONBLOCK)?;
+pub fn socket(domain: i32, ty: i32, proto: i32, _: Option<Infallible>) -> Result<OwnedFd> {
+    let fd = syscall!(socket, domain as _, ty as i32, proto as _)?;
+    let fd = unsafe { OwnedFd::from_raw_fd(fd) };
+    make_nonblocking(&fd)?;
     Ok(fd)
 }
 
 /// Attempts to read from a file descriptor into the buffer
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usize>, B) {
-    let slice = unsafe { slice::from_raw_parts_mut(buf.stable_mut_ptr(), buf.bytes_init()) };
     let result = read_nonblock(fd, buf.stable_mut_ptr(), buf.bytes_total())
         .await
         .and_then(|read| unsafe {
@@ -77,18 +76,23 @@ pub async fn connect(fd: i32, addr: SocketAddr) -> Result<()> {
 
     let (addr, len) = socket_addr(&addr);
     submit_once(event, || syscall!(connect, fd, &addr as *const _ as _, len)).await?;
-    // syscall!(
-    //     getsockopt,
-    //     fd,
-    //     libc::SOL_SOCKET,
-    //     libc::SO_ERROR,
-    //     null_mut(),
-    //     null_mut()
-    // )?;
+    let ref mut optval = 0;
+    let ref mut optlen = size_of_val(optval);
+    syscall!(
+        getsockopt,
+        fd,
+        libc::SOL_SOCKET,
+        libc::SO_ERROR,
+        optval as *mut _ as _,
+        optlen as *mut _ as _,
+    );
+    if *optval != 0 {
+        return Err(Error::from_raw_os_error(*optval));
+    }
     Ok(())
 }
 
-pub async fn accept(fd: i32) -> Result<(i32, SocketAddr)> {
+pub async fn accept(fd: i32) -> Result<(OwnedFd, SocketAddr)> {
     let mut address = unsafe { std::mem::zeroed::<libc::sockaddr>() };
     let mut address_len = size_of_val(&address) as u32;
     let event = pollfd {
@@ -101,6 +105,10 @@ pub async fn accept(fd: i32) -> Result<(i32, SocketAddr)> {
         syscall!(accept, fd, &mut address, &mut address_len)
     })
     .await?;
+
+    let fd = unsafe { OwnedFd::from_raw_fd(fd) };
+
+    make_nonblocking(&fd)?;
 
     let address = to_std_socket_addr(&address)?;
     Ok((fd, address))

@@ -1,8 +1,8 @@
-use osiris::buf::{IoBuf, IoBufMut};
+use osiris::buf::IoBuf;
 use std::rc::Rc;
 
 const ARRAY: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-const TEXT: &'static str = "hello world";
+const TEXT: &str = "hello world";
 
 #[osiris::test]
 async fn io_buf_box_u8() {

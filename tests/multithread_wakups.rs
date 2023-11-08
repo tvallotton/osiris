@@ -1,4 +1,4 @@
-use osiris::{block_on, spawn};
+use osiris::block_on;
 
 #[osiris::test]
 async fn thread_safe_send() {
@@ -18,8 +18,4 @@ async fn thread_safe_send() {
             });
         }
     });
-}
-
-async fn foo() {
-    let x = spawn(async {});
 }

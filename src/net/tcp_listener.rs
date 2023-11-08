@@ -1,5 +1,6 @@
 use crate::net::socket::{Domain, Protocol, Type};
 use crate::net::ToSocketAddrs;
+use std::fmt::Debug;
 use std::io::Result;
 use std::net::SocketAddr;
 use std::os::fd::{FromRawFd, IntoRawFd};
@@ -214,6 +215,12 @@ impl FromRawFd for TcpListener {
 impl IntoRawFd for TcpListener {
     fn into_raw_fd(self) -> std::os::fd::RawFd {
         self.socket.into_raw_fd()
+    }
+}
+
+impl Debug for TcpListener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("TcpListener")
     }
 }
 

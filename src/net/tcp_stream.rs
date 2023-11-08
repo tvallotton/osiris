@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::io::{Error, ErrorKind, Result};
 use std::net::Shutdown;
 use std::os::fd::{FromRawFd, IntoRawFd};
@@ -258,5 +259,11 @@ impl FromRawFd for TcpStream {
 impl IntoRawFd for TcpStream {
     fn into_raw_fd(self) -> std::os::fd::RawFd {
         self.socket.into_raw_fd()
+    }
+}
+
+impl Debug for TcpStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("TcpStream")
     }
 }

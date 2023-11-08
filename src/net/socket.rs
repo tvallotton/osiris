@@ -1,12 +1,12 @@
 #![allow(clippy::upper_case_acronyms)]
-use std::io::{Error, Result};
+use std::io::Result;
 use std::mem::{forget, size_of_val};
 use std::net::{Shutdown, SocketAddr};
 use std::os::fd::{FromRawFd, IntoRawFd};
 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
-use crate::reactor::op;
+use crate::reactor::op::{self};
 use crate::utils::syscall;
 
 use libc::{SOL_SOCKET, SO_REUSEPORT};
@@ -47,13 +47,10 @@ pub struct Socket {
 impl Socket {
     /// Creates a new socket
     pub fn new(domain: Domain, ty: Type, proto: Protocol) -> Result<Self> {
-        let fd = unsafe { libc::socket(domain as _, ty as i32, proto as _) };
-        if fd < 0 {
-            return Err(Error::last_os_error());
-        }
-        // TODO: Figure out why this fails
-        // let fd = op::socket(domain as _, ty as i32, proto as _, None)?;
-        Ok(Self { fd })
+        let fd = op::socket(domain as i32, ty as i32, proto as _, None)?;
+        Ok(Self {
+            fd: fd.into_raw_fd(),
+        })
     }
 
     pub async fn read<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
@@ -96,6 +93,7 @@ impl Socket {
         let optval = &1;
         let size = size_of_val(optval) as u32;
         let fd = self.fd;
+        dbg!(self.fd);
         syscall!(
             setsockopt,
             fd,
@@ -109,6 +107,7 @@ impl Socket {
 
     pub async fn accept(&self) -> Result<(Socket, SocketAddr)> {
         let (fd, addr) = op::accept(self.fd).await?;
+        let fd = fd.into_raw_fd();
         Ok((Socket { fd }, addr))
     }
 

@@ -181,7 +181,9 @@ impl Runtime {
     /// This is the main loop
     fn event_loop<T>(&self, handle: &mut JoinHandle<T>, task_id: TaskId) -> io::Result<T> {
         let Runtime {
-            executor, reactor, ..
+            executor,
+            reactor,
+            config,
         } = self;
 
         let handel_waker = main_waker();
@@ -198,7 +200,7 @@ impl Runtime {
                     return Ok(out);
                 }
             }
-            executor.poll(task_id);
+            executor.poll(task_id, config.queue_entries);
 
             if executor.is_idle() && !executor.main_handle.get() {
                 reactor.submit_and_wait()?;

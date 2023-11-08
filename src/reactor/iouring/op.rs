@@ -21,6 +21,10 @@ use super::event::submit;
 use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 
+pub use super::super::utils::{make_blocking, make_nonblocking};
+pub use read_at as fs_read;
+pub use write_at as fs_write;
+
 /// Attempts to close a file descriptor
 pub async fn close(fd: i32) -> Result<()> {
     let sqe = Close::new(Fd(fd)).build();
@@ -216,8 +220,8 @@ pub async fn poll_add(fd: i32, multi: bool) -> Result<()> {
     cqe.map(|_| ())
 }
 
-pub async fn write_nonblock(fd: i32, buf: &[u8]) -> Result<usize> {
-    nonblock(fd, || syscall!(write, fd, buf.as_ptr().cast(), buf.len()))
+pub async fn write_nonblock(fd: i32, buf: *const u8, len: usize) -> Result<usize> {
+    nonblock(fd, || syscall!(write, fd, buf.cast(), len))
         .await
         .map(|written| written as usize)
 }

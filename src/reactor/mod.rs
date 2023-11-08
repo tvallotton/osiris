@@ -32,6 +32,8 @@ mod nonblocking;
 #[cfg(not(io_uring))]
 mod poll;
 
+mod utils;
+
 // mod wakerstore;
 
 /// The driver stores the wakers for all the tasks that

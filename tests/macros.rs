@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[osiris::main]
