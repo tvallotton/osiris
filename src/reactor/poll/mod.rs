@@ -1,17 +1,14 @@
-
-
-//! Implementation summary: 
-//! 
+//! Implementation summary:
+//!
 //! | Routine          | Complexity| Ideal      | Function calls                          |
 //! |------------------|-----------|------------|-----------------------------------------|
 //! | push             | O(1)      | O(1)       | 3 * Vec::push                           |
 //! | cancellation     | O(n)      | O(1)       | n * Vec::index + 2  * Vec::swap_remove  |
 //! | wake_tasks       | O(n)      | O(n)       | n * Vec::index + 2m * Vec::swap_remove  |
-//! 
+//!
 //! Where n`` is the total number of io events and `m`` is the actual number of
 //! io events to be woken
-//! 
-
+//!
 
 use std::io;
 use std::task::Waker;
@@ -24,20 +21,18 @@ pub use libc::pollfd as Event;
 
 pub mod op;
 
-
 pub(crate) struct Driver {
     event_id: u64,
     wakers: Vec<(u64, Waker)>,
     fds: Vec<Event>,
-    to_wake: i32
+    to_wake: i32,
 }
-
 
 impl Driver {
     pub fn new(config: Config) -> io::Result<Self> {
         let driver = Driver {
-            event_id: 0, 
-            wakers: Vec::with_capacity(config.queue_entries as usize * 2), 
+            event_id: 0,
+            wakers: Vec::with_capacity(config.queue_entries as usize * 2),
             fds: Vec::with_capacity(config.queue_entries as usize * 2),
             to_wake: 0,
         };
@@ -56,16 +51,16 @@ impl Driver {
     }
 
     pub fn submit_and_wait(&mut self) -> io::Result<()> {
-        let timeout = Duration::from_secs(60); 
+        let timeout = Duration::from_secs(60);
         self.submit(timeout)
     }
 
     #[rustfmt::skip]
     fn submit(&mut self, timeout: Duration) -> io::Result<()> {
-        let timeout = timeout.as_millis() as i32; 
+        let timeout = timeout.as_millis() as i32;
         let len = self.fds.len() as u64;
         let fds = self.fds.as_mut_ptr();
-        self.to_wake = syscall!(poll, fds, len, timeout)?;
+        self.to_wake = syscall!(poll, fds, len as _, timeout)?;
         Ok(())
     }
 
@@ -76,15 +71,15 @@ impl Driver {
             let pollfd = self.fds[i];
             if pollfd.revents == 0 {
                 i += 1;
-                continue
+                continue;
             }
-            self.fds.swap_remove(i); 
-            let (_, waker) = self.wakers.swap_remove(i); 
-            waker.wake(); 
+            self.fds.swap_remove(i);
+            let (_, waker) = self.wakers.swap_remove(i);
+            waker.wake();
 
             self.to_wake -= 1;
             if self.to_wake <= 0 {
-                return
+                return;
             }
         }
     }
@@ -99,16 +94,12 @@ impl Driver {
             self.fds.swap_remove(i);
             break;
         }
-
     }
 
     pub fn push(&mut self, pollfd: Event, waker: Waker) -> u64 {
-        let id = self.event_id(); 
-        self.fds.push(pollfd); 
-        self.wakers.push((id, waker)); 
+        let id = self.event_id();
+        self.fds.push(pollfd);
+        self.wakers.push((id, waker));
         id
     }
-
-    
-
 }

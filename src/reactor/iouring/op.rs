@@ -22,8 +22,7 @@ use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 
 pub use super::super::utils::{make_blocking, make_nonblocking, socket};
-pub use read_at as fs_read;
-pub use write_at as fs_write;
+pub use {read_at as fs_read, write_at as fs_write};
 
 /// Attempts to close a file descriptor
 pub async fn close(fd: i32) -> Result<()> {

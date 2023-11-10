@@ -1,14 +1,18 @@
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap},
     io::{self, Error, Result},
     os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    sync::Arc,
     // ptr::{null},
-    task::Waker,
+    task::{Wake, Waker},
 };
 
-use crate::{runtime::Config, utils::syscall};
+use crate::runtime::Config;
+use crate::utils::syscall;
 
 use self::event::id;
+pub use libc::kevent as Event;
+
 mod event;
 pub mod op;
 
@@ -77,13 +81,29 @@ impl Driver {
         self.queue.clear();
     }
 
+    pub fn remove_waker(&mut self, waker: u64) {
+        // self.wakers.remove(waker);
+        todo!()
+    }
+
     pub fn push(&mut self, event: libc::kevent, waker: Waker) -> Result<()> {
         if self.queue.len() * 2 >= self.queue.capacity() {
             self.submit_and_yield()?;
             self.wake_tasks();
         }
         let k = (event.ident, event.filter);
+
         self.wakers.insert(k, waker);
+
+        match self.wakers.entry(k) {
+            Entry::Vacant(k) => {
+                k.insert(waker);
+            }
+            Entry::Occupied(mut k) => {
+                k.insert(join(waker, k.get().clone()));
+            }
+        }
+
         self.queue.push(event);
         Ok(())
     }
@@ -93,4 +113,19 @@ impl Driver {
         self.event_id += 1;
         self.event_id
     }
+}
+
+pub fn join(w1: Waker, w2: Waker) -> Waker {
+    struct JoinWaker(Waker, Waker);
+    impl Wake for JoinWaker {
+        fn wake(self: Arc<Self>) {
+            self.0.wake();
+            self.1.wake();
+        }
+        fn wake_by_ref(self: &Arc<Self>) {
+            self.0.wake_by_ref();
+            self.1.wake_by_ref();
+        }
+    }
+    Arc::new(JoinWaker(w1, w2)).into()
 }

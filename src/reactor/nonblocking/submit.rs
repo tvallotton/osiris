@@ -28,7 +28,7 @@ pub async fn wait(event: Event) -> io::Result<()> {
     .await
 }
 
-pub async fn submit<F, T>(event: libc::pollfd, mut f: F) -> io::Result<T>
+pub async fn submit<F, T>(event: Event, mut f: F) -> io::Result<T>
 where
     F: FnMut() -> io::Result<T>,
 {

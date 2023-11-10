@@ -8,6 +8,7 @@ use std::io::{Error, Result};
 
 use std::mem::size_of_val;
 use std::net::{Shutdown, SocketAddr};
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::slice;
@@ -15,9 +16,11 @@ use std::time::{Duration, Instant};
 
 use libc::{iovec, kevent, msghdr, EVFILT_READ, EVFILT_WRITE, EV_ADD, EV_ENABLE, EV_ONESHOT};
 
+pub use super::super::utils::{make_blocking, make_nonblocking, socket};
 use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 use crate::reactor::kqueue::event::{submit, submit_once};
+
 use crate::task::spawn_blocking;
 use crate::utils::syscall;
 
@@ -29,13 +32,6 @@ const zeroed: libc::kevent = libc::kevent {
     data: 0,
     udata: null_mut(),
 };
-
-pub fn socket(domain: i32, ty: i32, proto: i32, _: Option<Infallible>) -> Result<i32> {
-    let fd = unsafe { libc::socket(domain as _, ty as i32, proto as _) };
-    let flags = syscall!(fcntl, fd, libc::F_GETFL)?;
-    let flags = syscall!(fcntl, fd, libc::F_SETFL, flags | libc::O_NONBLOCK)?;
-    Ok(fd)
-}
 
 /// Attempts to read from a file descriptor into the buffer
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usize>, B) {
@@ -53,8 +49,10 @@ pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usi
 
 /// Attempts to read from a file descriptor into the buffer
 pub async fn write_at<B: IoBuf>(fd: i32, buf: B, _pos: i64) -> (Result<usize>, B) {
-    let slice = unsafe { slice::from_raw_parts(buf.stable_ptr(), buf.bytes_init()) };
-    (write_nonblock(fd, slice).await, buf)
+    (
+        write_nonblock(fd, buf.stable_ptr(), buf.bytes_init()).await,
+        buf,
+    )
 }
 
 pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
@@ -86,7 +84,7 @@ pub async fn connect(fd: i32, addr: SocketAddr) -> Result<()> {
     Ok(())
 }
 
-pub async fn accept(fd: i32) -> Result<(i32, SocketAddr)> {
+pub async fn accept(fd: i32) -> Result<(OwnedFd, SocketAddr)> {
     let mut address = unsafe { std::mem::zeroed::<libc::sockaddr>() };
     let mut address_len = size_of_val(&address) as u32;
     let mut kevent = zeroed;
@@ -98,13 +96,8 @@ pub async fn accept(fd: i32) -> Result<(i32, SocketAddr)> {
         syscall!(accept, fd, &mut address, &mut address_len)
     })
     .await?;
-    dbg!(
-        fd,
-        address_len,
-        address.sa_len,
-        address.sa_family,
-        address.sa_data
-    );
+    let fd = unsafe { OwnedFd::from_raw_fd(fd) };
+    make_nonblocking(&fd)?;
     let address = to_std_socket_addr(&address)?;
     Ok((fd, address))
 }
@@ -161,15 +154,12 @@ fn event_id() -> usize {
     })
 }
 
-pub async fn write_nonblock(fd: i32, buf: &[u8]) -> Result<usize> {
+pub async fn write_nonblock(fd: i32, buf: *const u8, len: usize) -> Result<usize> {
     let mut event = zeroed;
     event.ident = fd as _;
     event.filter = EVFILT_WRITE;
     event.flags = EV_ENABLE | EV_ADD;
-
-    let len: usize = buf.len();
-    let buf = buf.as_ptr() as _;
-    let res = submit(event, || syscall!(write, fd, buf, len)).await;
+    let res = submit(event, || syscall!(write, fd, buf.cast(), len)).await;
     Ok(res? as usize)
 }
 
@@ -180,7 +170,7 @@ pub async fn symlink(original: impl Into<PathBuf>, link: impl Into<PathBuf>) -> 
 }
 
 /// Submits a timeout operation to the queue
-pub async fn sleep(dur: Duration) {
+pub async fn sleep(dur: Duration) -> Result<()> {
     let mut event = zeroed;
     event.ident += event_id();
     event.flags = libc::EV_ADD | EV_ENABLE;
@@ -195,5 +185,4 @@ pub async fn sleep(dur: Duration) {
         }
     })
     .await
-    .unwrap()
 }

@@ -1,13 +1,11 @@
-use std::{
-    convert::Infallible,
-    io::Result,
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
-};
+use std::convert::Infallible;
+use std::io::Result;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 
 use crate::utils::syscall;
 
 pub fn socket(domain: i32, ty: i32, proto: i32, _: Option<Infallible>) -> Result<OwnedFd> {
-    let fd = syscall!(socket, domain as _, ty as i32, proto as _)?;
+    let fd = syscall!(socket, domain as _, ty, proto as _)?;
     let fd = unsafe { OwnedFd::from_raw_fd(fd) };
     make_nonblocking(&fd)?;
     Ok(fd)

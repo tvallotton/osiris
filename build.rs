@@ -4,7 +4,7 @@ fn main() {
     // Setup cfg aliases
     cfg_aliases! {
         io_uring: {
-            feature = "io-uring"
+            all(feature = "io-uring", target_os="linux")
         },
         kqueue: {
             any(

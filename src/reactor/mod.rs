@@ -10,11 +10,11 @@ use ::{
 #[cfg(io_uring)]
 pub(crate) use iouring::{op, Driver};
 
-#[cfg(not(io_uring))]
+#[cfg(all(target_os = "linux", not(io_uring)))]
 pub(crate) use poll::{op, Driver, Event};
 
 #[cfg(kqueue)]
-pub(crate) use kqueue::{op, Driver};
+pub(crate) use kqueue::{op, Driver, Event};
 
 use crate::runtime::Config;
 
@@ -29,7 +29,7 @@ mod kqueue;
 #[cfg(not(io_uring))]
 mod nonblocking;
 
-#[cfg(not(io_uring))]
+#[cfg(all(target_os = "linux", not(io_uring)))]
 mod poll;
 
 mod utils;

@@ -1,7 +1,5 @@
-use osiris::{
-    net::{TcpListener, TcpStream},
-    spawn,
-};
+use osiris::net::{TcpListener, TcpStream};
+use osiris::spawn;
 
 #[osiris::test]
 async fn connection_refused() {

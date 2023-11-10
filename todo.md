@@ -1,5 +1,4 @@
-1. Spawn blocking
-2. Register buffers
-3. Register files (multishot accept)
-4. Kqueue driver (bsd)
-5. IO-ring driver (windows)
+1. Registered buffers
+2. Registered files (multishot accept)
+3. Split readers and writers
+4. IO-ring driver (windows)
