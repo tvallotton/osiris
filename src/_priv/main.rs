@@ -14,7 +14,10 @@ pub trait IntoScale: sealed::Sealed {
 impl IntoScale for bool {
     fn scale(self) -> usize {
         if self {
-            core_affinity::get_core_ids().unwrap_or(vec![]).len().max(1)
+            core_affinity::get_core_ids()
+                .unwrap_or_default()
+                .len()
+                .max(1)
         } else {
             1
         }
@@ -56,7 +59,7 @@ fn no_scale_restart<T: Termination>(main: fn() -> io::Result<T>) -> ExitCode {
 }
 
 fn scaled_no_restart<T: Termination>(scale: usize, main: fn() -> io::Result<T>) -> ExitCode {
-    let cores = &core_affinity::get_core_ids().unwrap_or(vec![]);
+    let cores = &core_affinity::get_core_ids().unwrap_or_default();
     let n = cores.len().max(1);
     std::thread::scope(|s| {
         for thread in 0..scale {
@@ -76,7 +79,7 @@ fn scaled_and_restart(
     scale: usize,
     main: impl Fn() -> ExitCode + Copy + Clone + Sync + Send + UnwindSafe,
 ) -> ExitCode {
-    let cores = &core_affinity::get_core_ids().unwrap_or(vec![]);
+    let cores = &core_affinity::get_core_ids().unwrap_or_default();
     std::thread::scope(|s| {
         let (tx, rx) = std::sync::mpsc::channel();
 

@@ -34,8 +34,6 @@ mod poll;
 
 mod utils;
 
-// mod wakerstore;
-
 /// The driver stores the wakers for all the tasks that
 /// are waiting for IO and it will wake them when it is
 #[derive(Clone)]
@@ -52,14 +50,12 @@ impl Reactor {
     pub fn submit_and_wait(&self) -> io::Result<()> {
         let mut reactor = self.0.borrow_mut();
         reactor.submit_and_wait()?;
-        reactor.wake_tasks();
         Ok(())
     }
     /// submits all io-events to the kernel and yields immediately without blocking the thread.
     pub fn submit_and_yield(&self) -> io::Result<()> {
         let mut reactor = self.0.borrow_mut();
         reactor.submit_and_yield()?;
-        reactor.wake_tasks();
         Ok(())
     }
 

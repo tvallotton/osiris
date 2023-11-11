@@ -50,11 +50,13 @@ impl Driver {
 
     pub fn submit_and_yield(&mut self) -> io::Result<()> {
         self.io_uring.submit()?;
+        self.wake_tasks();
         Ok(())
     }
 
     pub fn submit_and_wait(&mut self) -> io::Result<()> {
         self.io_uring.submit_and_wait(1)?;
+        self.wake_tasks();
         Ok(())
     }
 

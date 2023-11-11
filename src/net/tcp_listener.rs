@@ -243,11 +243,11 @@ fn accept() {
             let request = request.clone();
             let response = response.clone();
             async move {
-                dbg!("bidning");
+                dbg!("server: bidning");
                 let listener = TcpListener::bind("127.0.0.1:8083").await.unwrap();
-                dbg!("accepting");
+                dbg!("server: accepting");
                 let (stream, _) = listener.accept().await.unwrap();
-                dbg!("accepted");
+                dbg!("server: accepted");
                 let buf = vec![0u8; 32];
                 let (n, buf) = stream.read(buf).await;
                 dbg!("server: read");
@@ -268,19 +268,19 @@ fn accept() {
             let request = request.clone();
             let response = response.clone();
             async move {
-                dbg!("connecting");
+                dbg!("client: connecting");
                 let stream = TcpStream::connect("127.0.0.1:8083").await.unwrap();
-                dbg!("connected");
+                dbg!("client: connected");
                 stream.write_all(request).await.0.unwrap();
-                dbg!("wrote");
+                dbg!("client: wrote");
                 let buf = vec![0u8; 32];
-                dbg!("read");
                 let (n, buf) = stream.read(buf).await;
+                dbg!("client: read");
                 assert_eq!(&buf[..n.unwrap()], &response[..]);
-                dbg!("shutdown");
                 stream.shutdown(std::net::Shutdown::Read).await.unwrap();
-                dbg!("close");
+                dbg!("client: shutdown");
                 stream.close().await.unwrap();
+                dbg!("client: closed");
             }
         })
         .await

@@ -96,10 +96,13 @@ impl Driver {
         }
     }
 
-    pub fn push(&mut self, pollfd: Event, waker: Waker) -> u64 {
+    pub fn push(&mut self, pollfd: Event, waker: Waker) -> Result<u64> {
+        if self.fds.len() == self.fds.capacity() {
+            self.submit_and_yield()?;
+        }
         let id = self.event_id();
         self.fds.push(pollfd);
         self.wakers.push((id, waker));
-        id
+        Ok(id)
     }
 }

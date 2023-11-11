@@ -1,19 +1,14 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    io::{self, Error, Result},
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
-    sync::Arc,
-    // ptr::{null},
-    task::{Wake, Waker},
-};
-
 use crate::runtime::Config;
 use crate::utils::syscall;
 
-use self::event::id;
+use slab::Slab;
+use std::io::{self, Error, Result};
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::task::Waker;
+
+pub use crate::reactor::nonblocking::*;
 pub use libc::kevent as Event;
 
-mod event;
 pub mod op;
 
 /// KQueue driver
@@ -25,7 +20,7 @@ pub(crate) struct Driver {
     /// the stack of events we are interested in
     queue: Vec<libc::kevent>,
 
-    wakers: HashMap<(usize, i16), Waker>,
+    wakers: Slab<Waker>,
 }
 
 impl Driver {
@@ -38,7 +33,7 @@ impl Driver {
             fd: unsafe { OwnedFd::from_raw_fd(fd) },
             event_id: 0,
             queue: Vec::with_capacity(config.queue_entries as usize * 2),
-            wakers: HashMap::with_capacity(config.queue_entries as usize),
+            wakers: Slab::with_capacity(config.queue_entries as usize),
         };
         Ok(driver)
     }
@@ -51,7 +46,6 @@ impl Driver {
     }
 
     pub fn submit_and_wait(&mut self) -> io::Result<()> {
-        // println!("submitting and wait");
         self.submit(&libc::timespec {
             tv_nsec: 0,
             tv_sec: 60,
@@ -66,66 +60,33 @@ impl Driver {
         let nevents    = self.queue.capacity() as i32;
         let nchanges   = self.queue.len() as i32;
         let len        = syscall!(kevent, kq, changelist, nchanges, eventlist, nevents, timeout)?;
-        unsafe{ self.queue.set_len(len as usize) };
+        unsafe { self.queue.set_len(len as usize) };
+        self.wake_tasks();
         Ok(())
-    }
-
-    /// wakes up any tasks listening for IO events.
-    pub fn wake_tasks(&mut self) {
-        for event in &self.queue {
-            let Some(waker) = self.wakers.remove(&id(*event)) else {
-                continue;
-            };
-            waker.wake();
-        }
-        self.queue.clear();
     }
 
     pub fn remove_waker(&mut self, waker: u64) {
-        // self.wakers.remove(waker);
-        todo!()
+        self.wakers.try_remove(waker as usize);
     }
 
-    pub fn push(&mut self, event: libc::kevent, waker: Waker) -> Result<()> {
+    pub fn push(&mut self, mut event: libc::kevent, waker: Waker) -> Result<u64> {
         if self.queue.len() * 2 >= self.queue.capacity() {
             self.submit_and_yield()?;
-            self.wake_tasks();
         }
-        let k = (event.ident, event.filter);
-
-        self.wakers.insert(k, waker);
-
-        match self.wakers.entry(k) {
-            Entry::Vacant(k) => {
-                k.insert(waker);
-            }
-            Entry::Occupied(mut k) => {
-                k.insert(join(waker, k.get().clone()));
-            }
-        }
-
+        let id = self.wakers.insert(waker);
+        event.udata = id as _;
         self.queue.push(event);
-        Ok(())
+        Ok(id as u64)
     }
 
-    #[inline]
-    pub fn event_id(&mut self) -> usize {
-        self.event_id += 1;
-        self.event_id
-    }
-}
-
-pub fn join(w1: Waker, w2: Waker) -> Waker {
-    struct JoinWaker(Waker, Waker);
-    impl Wake for JoinWaker {
-        fn wake(self: Arc<Self>) {
-            self.0.wake();
-            self.1.wake();
+    fn wake_tasks(&mut self) {
+        for event in &self.queue {
+            let option = self.wakers.get(event.udata as usize);
+            let Some(waker) = option else {
+                continue;
+            };
+            waker.wake_by_ref();
         }
-        fn wake_by_ref(self: &Arc<Self>) {
-            self.0.wake_by_ref();
-            self.1.wake_by_ref();
-        }
+        self.queue.clear();
     }
-    Arc::new(JoinWaker(w1, w2)).into()
 }

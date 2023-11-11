@@ -42,9 +42,9 @@ pub struct Config {
     ///
     /// This value is silently capped to 4096.
     pub queue_entries: u32,
-    #[cfg(target_os = "linux")]
     /// Determines whether the kernel will be notified for events, or whether it will be continuously
-    /// polling for them. By default this value is set to `Notify`.
+    /// polling for them. This value does nothing for platforms other that linux.
+    /// By default this value is set to `Notify`.
     pub mode: Mode,
     /// Determines the initial allocation size. When the runtime is expected to run for a
     /// long period of time, or it is expected to manage millions of tasks then a bigger value
@@ -104,7 +104,6 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             queue_entries: 128,
-            #[cfg(target_os = "linux")]
             mode: Mode::default(),
             init_capacity: 1024,
             thread_pool: ThreadPoolConfig::default(),

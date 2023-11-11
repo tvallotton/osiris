@@ -21,9 +21,14 @@ pub async fn wait(event: Event) -> io::Result<()> {
             return Poll::Ready(Ok(()));
         }
         submitted = true;
-        let id = reactor::current().driver().push(event, cx.waker().clone());
-        guard = Some(Guard(id));
-        Poll::Pending
+        let res = reactor::current().driver().push(event, cx.waker().clone());
+        match res {
+            Err(err) => Poll::Ready(Err(err)),
+            Ok(id) => {
+                guard = Some(Guard(id));
+                Poll::Pending
+            }
+        }
     })
     .await
 }
@@ -48,7 +53,7 @@ where
 /// Note: this function is used for connect mostly.
 /// In connect the system call needs to be performed before the wait, however,
 /// after the wait,
-pub async fn submit_once<F>(event: libc::pollfd, f: F) -> io::Result<()>
+pub async fn submit_once<F>(event: Event, f: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<i32>,
 {
