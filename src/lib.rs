@@ -174,7 +174,7 @@ mod utils;
 
 pub mod _priv;
 pub mod buf;
-#[cfg(io_uring)]
+
 pub mod fs;
 pub mod net;
 mod reactor;

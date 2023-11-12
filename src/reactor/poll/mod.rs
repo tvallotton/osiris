@@ -96,7 +96,7 @@ impl Driver {
         }
     }
 
-    pub fn push(&mut self, pollfd: Event, waker: Waker) -> Result<u64> {
+    pub fn push(&mut self, pollfd: Event, waker: Waker) -> io::Result<u64> {
         if self.fds.len() == self.fds.capacity() {
             self.submit_and_yield()?;
         }

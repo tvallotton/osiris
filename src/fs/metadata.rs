@@ -1,8 +1,10 @@
+#![allow(unreachable_code)]
 use super::cstr;
 use crate::reactor::op;
+#[cfg(target_os = "linux")]
 use crate::utils::{statx, statx_timestamp};
-use libc::{AT_SYMLINK_NOFOLLOW, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
-use std::io::{self, Result};
+use libc::{mode_t, AT_SYMLINK_NOFOLLOW, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
+use std::io::{self, Error, Result};
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
@@ -87,7 +89,6 @@ async fn _metadata(path: &Path, flags: i32) -> std::io::Result<Metadata> {
 /// as its permissions, size, modification
 /// times, etc.
 pub struct Metadata {
-    #[cfg(target_os = "linux")]
     pub(crate) statx: statx,
 }
 
@@ -127,7 +128,9 @@ impl Metadata {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn accessed(&self) -> std::io::Result<SystemTime> {
-        Ok(system_time(self.statx.stx_atime))
+        #[cfg(target_family = "unix")]
+        return Ok(system_time(self.statx.stx_atime));
+        return Err(Error::from(io::ErrorKind::Unsupported));
     }
 
     /// Returns the creation time listed in this metadata.
@@ -156,7 +159,9 @@ impl Metadata {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn created(&self) -> std::io::Result<SystemTime> {
-        Ok(system_time(self.statx.stx_ctime))
+        #[cfg(target_family = "unix")]
+        return Ok(system_time(self.statx.stx_ctime));
+        return Err(Error::from(io::ErrorKind::Unsupported));
     }
 
     /// Returns the last modification time listed in this metadata.
@@ -185,7 +190,9 @@ impl Metadata {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub fn modified(&self) -> io::Result<SystemTime> {
-        Ok(system_time(self.statx.stx_mtime))
+        #[cfg(target_family = "unix")]
+        return Ok(system_time(self.statx.stx_mtime));
+        return Err(Error::from(io::ErrorKind::Unsupported));
     }
 
     /// Returns `true` if this metadata is for a directory. The
@@ -296,7 +303,7 @@ impl FileType {
     /// ```
     #[must_use]
     pub fn is_dir(&self) -> bool {
-        (self.0 as u32 & S_IFMT) == S_IFDIR
+        (self.0 as mode_t & S_IFMT) == S_IFDIR
     }
 
     /// Returns `true` if this metadata is for a regular file. The
@@ -321,7 +328,7 @@ impl FileType {
     /// ```
     #[must_use]
     pub fn is_file(&self) -> bool {
-        (self.0 as u32 & S_IFMT) == S_IFREG
+        (self.0 as mode_t & S_IFMT) == S_IFREG
     }
 
     /// Tests whether this file type represents a symbolic link.
@@ -357,7 +364,7 @@ impl FileType {
     /// ```
     #[must_use]
     pub fn is_symlink(&self) -> bool {
-        (self.0 as u32 & S_IFMT) == S_IFLNK
+        (self.0 as mode_t & S_IFMT) == S_IFLNK
     }
 
     /// Returns `true` if this file type is a fifo.
@@ -377,10 +384,11 @@ impl FileType {
     /// }
     /// ```
     pub fn is_fifo(&self) -> bool {
-        (self.0 as u32 & libc::S_IFIFO) == libc::S_IFIFO
+        (self.0 as mode_t & libc::S_IFIFO) == libc::S_IFIFO
     }
 }
 
+#[cfg(target_os = "linux")]
 fn system_time(time: statx_timestamp) -> SystemTime {
     let secs = Duration::from_secs(time.tv_sec as _);
     let nanos = Duration::from_nanos(time.tv_nsec as _);

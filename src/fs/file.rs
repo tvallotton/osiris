@@ -5,7 +5,6 @@ use crate::detach;
 use crate::fs::Metadata;
 use crate::reactor::op;
 
-use io_uring::types::FsyncFlags;
 use libc::AT_FDCWD;
 use std::io::{self, Error, Result};
 use std::mem::{forget, MaybeUninit};
@@ -419,7 +418,7 @@ impl File {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn sync_all(&self) -> Result<()> {
-        op::fsync(self.fd, FsyncFlags::all()).await?;
+        op::fsync(self.fd).await?;
         Ok(())
     }
 
@@ -454,7 +453,7 @@ impl File {
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
     pub async fn sync_data(&self) -> Result<()> {
-        op::fsync(self.fd, FsyncFlags::DATASYNC).await?;
+        op::fdatasync(self.fd).await?;
         Ok(())
     }
 

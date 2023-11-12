@@ -1,7 +1,7 @@
 use super::cstr;
 use crate::reactor::op::{self, unlink_at};
 use std::io::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Creates a new, empty directory at the provided path
 ///
@@ -23,8 +23,8 @@ use std::path::Path;
 /// fs::create_dir("/some/dir").await?;
 /// # std::io::Result::Ok(()) }).unwrap();
 /// ```
-pub async fn create_dir(path: impl AsRef<Path>) -> Result<()> {
-    let path = cstr(path.as_ref())?;
+pub async fn create_dir(path: impl Into<PathBuf>) -> Result<()> {
+    let path = cstr(path)?;
     op::mkdir_at(path).await
 }
 

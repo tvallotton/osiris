@@ -9,10 +9,10 @@
 //! the buffers used by osiris files need to be owned, and cannot work with
 //! references.
 //!
-use std::ffi::CString;
 use std::io::Result;
-use std::os::unix::prelude::OsStrExt;
+use std::os::unix::prelude::{OsStrExt, OsStringExt};
 use std::path::Path;
+use std::{ffi::CString, path::PathBuf};
 
 pub use dir::{create_dir, remove_dir};
 
@@ -29,6 +29,7 @@ mod open_options;
 mod read;
 mod symlink;
 
-pub(crate) fn cstr(path: &Path) -> Result<CString> {
-    Ok(CString::new(path.as_os_str().as_bytes())?)
+pub(crate) fn cstr(path: impl Into<PathBuf>) -> Result<CString> {
+    let path: PathBuf = path.into();
+    Ok(CString::new(path.into_os_string().into_vec())?)
 }

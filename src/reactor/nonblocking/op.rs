@@ -1,14 +1,15 @@
-use libc::{iovec, msghdr};
+use libc::{iovec, msghdr, syscall};
 use submit::submit_once;
 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 use crate::reactor::op::{make_nonblocking, read_event, write_event};
 use crate::task::spawn_blocking;
-use crate::utils::syscall;
+use crate::utils::{statx, syscall};
 
+use std::ffi::CString;
 use std::io::{Error, Result};
-use std::mem::size_of_val;
+use std::mem::{size_of_val, zeroed};
 use std::net::{Shutdown, SocketAddr};
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::PathBuf;
@@ -29,6 +30,33 @@ pub async fn fs_write<B: IoBuf + Send + Sync>(fd: i32, buf: B) -> (Result<usize>
         (r.map(|n| n as usize), buf)
     })
     .await
+}
+
+pub async fn mkdir_at(path: CString) -> Result<()> {
+    spawn_blocking(move || syscall!(mkdirat, libc::AT_FDCWD, path.as_ptr(), 0)).await?;
+    Ok(())
+}
+
+pub async fn statx(fd: i32, path: Option<CString>, _flags: i32) -> Result<statx> {
+    let stat = spawn_blocking(move || {
+        let mut stat: libc::stat = unsafe { zeroed() };
+        match path {
+            None => syscall!(fstat, fd, &mut stat)?,
+            Some(path) => syscall!(stat, path.as_ptr(), &mut stat)?,
+        };
+        Result::Ok(stat)
+    })
+    .await?;
+    Ok(statx::from_stat(stat))
+}
+
+pub async fn unlink_at(path: CString, dirfd: i32) -> Result<()> {
+    spawn_blocking(move || syscall!(unlinkat, dirfd, path.as_ptr(), 0)).await?;
+    Ok(())
+}
+
+pub async fn open_at(path: CString, flags: i32, mode: u32) -> Result<i32> {
+    spawn_blocking(move || syscall!(openat, libc::AT_FDCWD, path.as_ptr(), flags, mode)).await
 }
 
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usize>, B) {
@@ -144,8 +172,18 @@ pub async fn write_nonblock(fd: i32, buf: *const u8, len: usize) -> Result<usize
     Ok(res? as usize)
 }
 
-pub async fn symlink(original: impl Into<PathBuf>, link: impl Into<PathBuf>) -> Result<()> {
-    let original: PathBuf = original.into();
-    let link: PathBuf = link.into();
-    spawn_blocking(move || std::os::unix::fs::symlink(original, link)).await
+pub async fn fsync(fd: i32) -> Result<()> {
+    spawn_blocking(move || syscall!(fsync, fd)).await?;
+    Ok(())
+}
+
+pub async fn fdatasync(fd: i32) -> Result<()> {
+    spawn_blocking(move || syscall!(fdatasync, fd)).await?;
+    Ok(())
+}
+
+pub async fn symlink(original: CString, link: CString) -> Result<()> {
+    spawn_blocking(move || syscall!(symlinkat, link.as_ptr(), libc::AT_FDCWD, original.as_ptr()))
+        .await?;
+    Ok(())
 }

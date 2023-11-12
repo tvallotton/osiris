@@ -58,8 +58,16 @@ pub async fn write_at<B: IoBuf>(fd: i32, buf: B, pos: i64) -> (Result<usize>, B)
 }
 
 /// Performs an fsync call
-pub async fn fsync(fd: i32, flags: FsyncFlags) -> Result<i32> {
-    let sqe = Fsync::new(Fd(fd)).flags(flags).build();
+pub async fn fsync(fd: i32) -> Result<i32> {
+    let sqe = Fsync::new(Fd(fd)).flags(FsyncFlags::all()).build();
+    // Safety: no resource tracking needed
+    let res = unsafe { submit(sqe, ()).await.0?.result() };
+    Ok(res)
+}
+
+/// Performs an fdatasync call
+pub async fn fdatasync(fd: i32) -> Result<i32> {
+    let sqe = Fsync::new(Fd(fd)).flags(FsyncFlags::DATASYNC).build();
     // Safety: no resource tracking needed
     let res = unsafe { submit(sqe, ()).await.0?.result() };
     Ok(res)
@@ -99,7 +107,7 @@ pub async fn epoll_ctl(epfd: i32, fd: i32) {}
 /// ```ignore
 /// let statx = op::statx(libc::AT_FDCWD, Some(path)).await?;
 /// ```
-pub async fn statx(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
+pub async fn stat(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
     let pathname = path
         .as_ref()
         .map(|x| x.as_ptr())
