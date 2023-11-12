@@ -1,8 +1,8 @@
 #[cfg(target_os = "linux")]
 pub const STATX_ALL: u32 = 0x0fff;
 use libc::{
-    STATX_ATIME, STATX_BASIC_STATS, STATX_BLOCKS, STATX_BTIME, STATX_CTIME, STATX_GID, STATX_INO,
-    STATX_MODE, STATX_NLINK, STATX_SIZE, STATX_UID,
+    STATX_ATIME, STATX_BASIC_STATS, STATX_BLOCKS, STATX_CTIME, STATX_GID, STATX_INO, STATX_MODE,
+    STATX_NLINK, STATX_SIZE, STATX_UID,
 };
 /// We need to copy this because libc::statx
 /// is not available in musl

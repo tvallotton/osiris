@@ -1,4 +1,4 @@
-use libc::{iovec, msghdr, syscall};
+use libc::{iovec, msghdr};
 use submit::submit_once;
 
 use crate::buf::{IoBuf, IoBufMut};
@@ -12,7 +12,6 @@ use std::io::{Error, Result};
 use std::mem::{size_of_val, zeroed};
 use std::net::{Shutdown, SocketAddr};
 use std::os::fd::{FromRawFd, OwnedFd};
-use std::path::PathBuf;
 
 use super::submit;
 

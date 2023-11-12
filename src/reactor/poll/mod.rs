@@ -25,7 +25,6 @@ pub(crate) struct Driver {
     event_id: u64,
     wakers: Vec<(u64, Waker)>,
     fds: Vec<Event>,
-    to_wake: i32,
 }
 
 impl Driver {
@@ -34,7 +33,6 @@ impl Driver {
             event_id: 0,
             wakers: Vec::with_capacity(config.queue_entries as usize * 2),
             fds: Vec::with_capacity(config.queue_entries as usize * 2),
-            to_wake: 0,
         };
 
         Ok(driver)
@@ -60,11 +58,12 @@ impl Driver {
         let timeout = timeout.as_millis() as i32;
         let len = self.fds.len() as u64;
         let fds = self.fds.as_mut_ptr();
-        self.to_wake = syscall!(poll, fds, len as _, timeout)?;
+        let to_wake = syscall!(poll, fds, len as _, timeout)?;
+        self.wake_tasks(to_wake);
         Ok(())
     }
 
-    pub fn wake_tasks(&mut self) {
+    pub fn wake_tasks(&mut self, mut to_wake: i32) {
         assert!(self.fds.len() == self.wakers.len());
         let mut i = 0;
         while i < self.fds.len() {
@@ -77,8 +76,8 @@ impl Driver {
             let (_, waker) = self.wakers.swap_remove(i);
             waker.wake();
 
-            self.to_wake -= 1;
-            if self.to_wake <= 0 {
+            to_wake -= 1;
+            if to_wake <= 0 {
                 return;
             }
         }
