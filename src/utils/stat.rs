@@ -1,12 +1,7 @@
-#[cfg(target_os = "linux")]
-pub const STATX_ALL: u32 = 0x0fff;
-use libc::{
-    STATX_ATIME, STATX_BASIC_STATS, STATX_BLOCKS, STATX_CTIME, STATX_GID, STATX_INO, STATX_MODE,
-    STATX_NLINK, STATX_SIZE, STATX_UID,
-};
+pub const STATX_BASIC_STATS: u32 = 0x07ff;
+
 /// We need to copy this because libc::statx
 /// is not available in musl
-// #[cfg(target_os = "linux")]
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct statx {
@@ -17,7 +12,7 @@ pub struct statx {
     pub stx_uid: u32,
     pub stx_gid: u32,
     pub stx_mode: u16,
-    pub __statx_pad1: [u16; 1],
+    __statx_pad1: [u16; 1],
     pub stx_ino: u64,
     pub stx_size: u64,
     pub stx_blocks: u64,
@@ -30,11 +25,11 @@ pub struct statx {
     pub stx_rdev_minor: u32,
     pub stx_dev_major: u32,
     pub stx_dev_minor: u32,
-    pub __statx_pad2: [u64; 14],
+    __statx_pad2: [u64; 14],
 }
 #[derive(Clone, Copy)]
 #[repr(C)]
-// #[cfg(target_os = "linux")]
+
 pub struct statx_timestamp {
     pub tv_sec: i64,
     pub tv_nsec: u32,
@@ -43,22 +38,12 @@ pub struct statx_timestamp {
 
 impl statx {
     pub fn from_stat(stat: libc::stat) -> statx {
-        let stx_mask = STATX_BASIC_STATS
-            | STATX_NLINK
-            | STATX_ATIME
-            | STATX_CTIME
-            | STATX_MODE
-            | STATX_BLOCKS
-            | STATX_SIZE
-            | STATX_INO
-            | STATX_GID
-            | STATX_UID;
         unsafe {
             statx {
-                stx_mask,
+                stx_mask: STATX_BASIC_STATS,
                 stx_blksize: stat.st_blksize as _,
                 stx_attributes: 0,
-                stx_nlink: stat.st_nlink,
+                stx_nlink: stat.st_nlink as _,
                 stx_uid: stat.st_uid,
                 stx_gid: stat.st_gid,
                 stx_mode: stat.st_mode as _,
@@ -71,10 +56,10 @@ impl statx {
                 stx_btime: statx_timestamp::new(0, 0),
                 stx_ctime: statx_timestamp::new(stat.st_ctime, stat.st_ctime_nsec),
                 stx_mtime: statx_timestamp::new(stat.st_mtime, stat.st_mtime_nsec),
-                stx_rdev_major: libc::major(stat.st_rdev),
-                stx_rdev_minor: libc::minor(stat.st_rdev),
-                stx_dev_major: libc::major(stat.st_dev),
-                stx_dev_minor: libc::minor(stat.st_dev),
+                stx_rdev_major: libc::major(stat.st_rdev) as _,
+                stx_rdev_minor: libc::minor(stat.st_rdev) as _,
+                stx_dev_major: libc::major(stat.st_dev) as _,
+                stx_dev_minor: libc::minor(stat.st_dev) as _,
                 __statx_pad2: [0; 14],
             }
         }

@@ -45,6 +45,11 @@ pub fn write_event(fd: i32) -> pollfd {
     }
 }
 
+pub async fn fdatasync(fd: i32) -> Result<()> {
+    spawn_blocking(move || syscall!(fdatasync, fd)).await?;
+    Ok(())
+}
+
 pub async fn sleep(dur: Duration) -> Result<()> {
     let mut event = zeroed;
 

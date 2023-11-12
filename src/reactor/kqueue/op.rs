@@ -61,6 +61,11 @@ fn event_id() -> usize {
     })
 }
 
+pub async fn fdatasync(fd: i32) -> Result<()> {
+    spawn_blocking(move || syscall!(fcntl, fd, libc::F_FULLFSYNC)).await?;
+    Ok(())
+}
+
 /// Submits a timeout operation to the queue
 pub async fn sleep(dur: Duration) -> Result<()> {
     let mut event = zeroed;

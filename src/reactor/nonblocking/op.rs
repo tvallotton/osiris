@@ -54,8 +54,9 @@ pub async fn unlink_at(path: CString, dirfd: i32) -> Result<()> {
     Ok(())
 }
 
-pub async fn open_at(path: CString, flags: i32, mode: u32) -> Result<i32> {
-    spawn_blocking(move || syscall!(openat, libc::AT_FDCWD, path.as_ptr(), flags, mode)).await
+pub async fn open_at(path: CString, flags: i32, mode: libc::mode_t) -> Result<i32> {
+    spawn_blocking(move || syscall!(openat, libc::AT_FDCWD, path.as_ptr(), flags, mode as u32))
+        .await
 }
 
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usize>, B) {
@@ -90,7 +91,9 @@ pub async fn connect(fd: i32, addr: SocketAddr) -> Result<()> {
     let event = write_event(fd);
 
     let (addr, len) = socket_addr(&addr);
+    dbg!();
     submit_once(event, || syscall!(connect, fd, &addr as *const _ as _, len)).await?;
+
     retrieve_connection_error(fd)?;
     Ok(())
 }
@@ -173,11 +176,6 @@ pub async fn write_nonblock(fd: i32, buf: *const u8, len: usize) -> Result<usize
 
 pub async fn fsync(fd: i32) -> Result<()> {
     spawn_blocking(move || syscall!(fsync, fd)).await?;
-    Ok(())
-}
-
-pub async fn fdatasync(fd: i32) -> Result<()> {
-    spawn_blocking(move || syscall!(fdatasync, fd)).await?;
     Ok(())
 }
 

@@ -1,7 +1,6 @@
 #![allow(unreachable_code)]
 use super::cstr;
 use crate::reactor::op;
-#[cfg(target_os = "linux")]
 use crate::utils::{statx, statx_timestamp};
 use libc::{mode_t, AT_SYMLINK_NOFOLLOW, S_IFDIR, S_IFLNK, S_IFMT, S_IFREG};
 use std::io::{self, Error, Result};
@@ -388,7 +387,6 @@ impl FileType {
     }
 }
 
-#[cfg(target_os = "linux")]
 fn system_time(time: statx_timestamp) -> SystemTime {
     let secs = Duration::from_secs(time.tv_sec as _);
     let nanos = Duration::from_nanos(time.tv_nsec as _);

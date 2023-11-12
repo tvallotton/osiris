@@ -9,13 +9,12 @@
 //! the buffers used by osiris files need to be owned, and cannot work with
 //! references.
 //!
+use std::ffi::CString;
 use std::io::Result;
-use std::os::unix::prelude::{OsStrExt, OsStringExt};
-use std::path::Path;
-use std::{ffi::CString, path::PathBuf};
+use std::os::unix::prelude::OsStringExt;
+use std::path::PathBuf;
 
 pub use dir::{create_dir, remove_dir};
-
 pub use file::{remove_file, File};
 pub use metadata::{metadata, symlink_metadata, FileType, Metadata};
 pub use open_options::OpenOptions;
