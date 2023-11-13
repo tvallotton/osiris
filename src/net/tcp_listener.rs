@@ -1,5 +1,6 @@
 use crate::net::socket::{Domain, Protocol, Type};
 use crate::net::ToSocketAddrs;
+
 use std::fmt::Debug;
 use std::io::Result;
 use std::net::SocketAddr;
@@ -234,56 +235,67 @@ fn reuseport() {
     .unwrap();
 }
 
+#[cfg(test)]
 #[test]
 fn accept() {
+    use crate::join;
+    use crate::sync::mpmc::channel;
+    use crate::time::timeout;
+    use std::time::Duration;
+
     crate::block_on(async {
         let request = [0u8; 32].map(|_| fastrand::u8(..)).to_vec();
         let response = [0u8; 32].map(|_| fastrand::u8(..)).to_vec();
-        crate::detach({
-            let request = request.clone();
-            let response = response.clone();
-            async move {
-                dbg!("server: bidning");
-                let listener = TcpListener::bind("127.0.0.1:8083").await.unwrap();
-                dbg!("server: accepting");
-                let (stream, _) = listener.accept().await.unwrap();
-                dbg!("server: accepted");
-                let buf = vec![0u8; 32];
-                let (n, buf) = stream.read(buf).await;
-                dbg!("server: read");
-                assert_eq!(&buf[..n.unwrap()], &request.clone()[..]);
-                stream.write(response).await.0.unwrap();
-                dbg!("server: wrote");
-                stream.shutdown(std::net::Shutdown::Write).await.unwrap();
-                dbg!("server: shutdown write");
-                stream.shutdown(std::net::Shutdown::Both).await.unwrap();
-                dbg!("server: shutdown read");
-                stream.close().await.unwrap();
-                dbg!("server: close stream");
-                listener.close().await.unwrap();
-            }
-        });
-
-        crate::detach({
-            let request = request.clone();
-            let response = response.clone();
-            async move {
-                dbg!("client: connecting");
-                let stream = TcpStream::connect("127.0.0.1:8083").await.unwrap();
-                dbg!("client: connected");
-                stream.write_all(request).await.0.unwrap();
-                dbg!("client: wrote");
-                let buf = vec![0u8; 32];
-                let (n, buf) = stream.read(buf).await;
-                dbg!("client: read");
-                assert_eq!(&buf[..n.unwrap()], &response[..]);
-                stream.shutdown(std::net::Shutdown::Read).await.unwrap();
-                dbg!("client: shutdown");
-                stream.close().await.unwrap();
-                dbg!("client: closed");
-            }
+        let (tx, rx) = channel::<()>(0);
+        timeout(Duration::from_secs(1), async {
+            join!(
+                server(request.clone(), response.clone(), tx),
+                client(request, response, rx)
+            )
         })
         .await
+        .unwrap();
     })
     .unwrap();
+}
+
+#[cfg(test)]
+async fn client(request: Vec<u8>, response: Vec<u8>, rx: crate::sync::mpmc::Receiver<()>) {
+    rx.recv().await.unwrap();
+    dbg!("client: connecting");
+    let stream = TcpStream::connect("127.0.0.1:8085").await.unwrap();
+    dbg!("client: connected");
+    stream.write_all(request).await.0.unwrap();
+    dbg!("client: wrote");
+    let buf = vec![0u8; 32];
+    let (n, buf) = stream.read(buf).await;
+    dbg!("client: read");
+    assert_eq!(&buf[..n.unwrap()], &response[..]);
+    stream.shutdown(std::net::Shutdown::Read).await.unwrap();
+    dbg!("client: shutdown");
+    stream.close().await.unwrap();
+    dbg!("client: closed");
+}
+
+#[cfg(test)]
+async fn server(request: Vec<u8>, response: Vec<u8>, tx: crate::sync::mpmc::Sender<()>) {
+    dbg!("server: bidning");
+    let listener = TcpListener::bind("127.0.0.1:8085").await.unwrap();
+    dbg!("server: accepting");
+    tx.send(()).await.unwrap();
+    let (stream, _) = listener.accept().await.unwrap();
+    dbg!("server: accepted");
+    let buf = vec![0u8; 32];
+    let (n, buf) = stream.read(buf).await;
+    dbg!("server: read");
+    assert_eq!(&buf[..n.unwrap()], &request.clone()[..]);
+    stream.write(response).await.0.unwrap();
+    dbg!("server: wrote");
+    stream.shutdown(std::net::Shutdown::Write).await.unwrap();
+    dbg!("server: shutdown write");
+    stream.shutdown(std::net::Shutdown::Both).await.unwrap();
+    dbg!("server: shutdown read");
+    stream.close().await.unwrap();
+    dbg!("server: close stream");
+    listener.close().await.unwrap();
 }
