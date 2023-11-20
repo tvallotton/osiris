@@ -4,7 +4,7 @@ use osiris::net::{TcpListener, TcpStream};
 use osiris::task::yield_now;
 use std::io::Result;
 
-async fn handle_client(stream: TcpStream) -> Result<()> {
+async fn handle_client(mut stream: TcpStream) -> Result<()> {
     let buf = vec![0; 1048];
     let (n, buf) = stream.read(buf).await;
     let buf = buf.slice(..n?);
@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     for _ in 0..N {
         let client = detach(async move {
             //osiris::time::sleep(std::time::Duration::from_secs(2));
-            let stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+            let mut stream = TcpStream::connect("127.0.0.1:8080").await.unwrap();
             let msg = format!("the code is: {}", fastrand::u128(..));
             stream.write_all(msg.clone().into_bytes()).await.0.unwrap();
             let buf = vec![0; 2048];

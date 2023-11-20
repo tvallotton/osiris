@@ -32,7 +32,7 @@ use super::to_socket_addr::{try_until_success, ToSocketAddrs};
 ///
 /// #[osiris::main]
 /// async fn main() -> std::io::Result<()> {
-///     let stream = TcpStream::connect("www.example.com:80").await?;
+///     let mut stream = TcpStream::connect("www.example.com:80").await?;
 ///     stream
 ///         .write_all(b"GET / HTTP/1.1\r\nHost: www.example.com\r\n\r\n")
 ///         .await.0?;
@@ -123,14 +123,14 @@ impl TcpStream {
     ///
     /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
-    ///     let stream = TcpStream::connect("127.0.0.1:8080").await?;
+    ///     let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
     ///     let buf = vec![0; 128];
     ///     let (n, buf) = stream.read(buf).await;
     ///     let read = &buf[..n?];
     ///     Ok(())
     /// }
     /// ```
-    pub async fn read<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+    pub async fn read<B: IoBufMut>(&mut self, buf: B) -> (Result<usize>, B) {
         op::read_at(self.socket.fd, buf, 0).await
     }
     /// Write some data to the stream from the buffer, returning the original buffer and quantity of data written.
@@ -141,14 +141,14 @@ impl TcpStream {
     ///
     /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
-    ///     let stream = TcpStream::connect("127.0.0.1:8080").await?;
+    ///     let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
     ///     let message = "some message";
     ///     let (n, _) = stream.write("some message").await;
     ///     assert_eq!(message.len(), n?);
     ///     Ok(())
     /// }
     /// ```
-    pub async fn write<B: IoBuf>(&self, buf: B) -> (Result<usize>, B) {
+    pub async fn write<B: IoBuf>(&mut self, buf: B) -> (Result<usize>, B) {
         op::write_at(self.socket.fd, buf, 0).await
     }
 
@@ -170,14 +170,14 @@ impl TcpStream {
     ///
     /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
-    ///     let stream = TcpStream::connect("127.0.0.1:8080").await?;
+    ///     let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
     ///     let (res, _) = stream.write_all("GET /index.html HTTP/1.0\r\n\r\n").await;
     ///     res?;
     ///     Ok(())
     /// }
     /// ```
     /// [`write`]: Self::write
-    pub async fn write_all<B: IoBuf>(&self, mut buf: B) -> (Result<()>, B) {
+    pub async fn write_all<B: IoBuf>(&mut self, mut buf: B) -> (Result<()>, B) {
         let mut n = 0;
         while n < buf.bytes_init() {
             let (written, buf_) = self.write(buf.slice(n..)).await;
@@ -219,13 +219,13 @@ impl TcpStream {
     ///
     /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
-    ///     let stream = TcpStream::connect("127.0.0.1:8080").await?;
+    ///     let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
     ///     stream.shutdown(Shutdown::Both).await?;
     ///     stream.close().await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn shutdown(&self, how: Shutdown) -> Result<()> {
+    pub async fn shutdown(&mut self, how: Shutdown) -> Result<()> {
         self.socket.shutdown(how).await
     }
     /// Closes the file descriptor. Calling this method is recommended
@@ -238,7 +238,7 @@ impl TcpStream {
     ///
     /// #[osiris::main]
     /// async fn main() -> std::io::Result<()> {
-    ///     let stream = TcpStream::connect("127.0.0.1:8080").await?;
+    ///     let mut stream = TcpStream::connect("127.0.0.1:8080").await?;
     ///     stream.shutdown(Shutdown::Both).await?;
     ///     stream.close().await?;
     ///     Ok(())

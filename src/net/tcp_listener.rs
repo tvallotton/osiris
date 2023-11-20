@@ -33,7 +33,7 @@ use super::TcpStream;
 /// use osiris::net::{TcpListener, TcpStream};
 /// use std::io::Result;
 ///
-/// async fn handle_client(stream: TcpStream) -> Result<()> {
+/// async fn handle_client(mut stream: TcpStream) -> Result<()> {
 ///     let buf = vec![0; 1048];
 ///     let (n, buf) = stream.read(buf).await;
 ///     let buf = buf.slice(..n?);
@@ -263,7 +263,7 @@ fn accept() {
 async fn client(request: Vec<u8>, response: Vec<u8>, rx: crate::sync::mpmc::Receiver<()>) {
     rx.recv().await.unwrap();
     dbg!("client: connecting");
-    let stream = TcpStream::connect("127.0.0.1:8085").await.unwrap();
+    let mut stream = TcpStream::connect("127.0.0.1:8085").await.unwrap();
     dbg!("client: connected");
     stream.write_all(request).await.0.unwrap();
     dbg!("client: wrote");
@@ -283,7 +283,7 @@ async fn server(request: Vec<u8>, response: Vec<u8>, tx: crate::sync::mpmc::Send
     let listener = TcpListener::bind("127.0.0.1:8085").await.unwrap();
     dbg!("server: accepting");
     tx.send(()).await.unwrap();
-    let (stream, _) = listener.accept().await.unwrap();
+    let (mut stream, _) = listener.accept().await.unwrap();
     dbg!("server: accepted");
     let buf = vec![0u8; 32];
     let (n, buf) = stream.read(buf).await;
