@@ -7,6 +7,7 @@ use std::os::fd::{FromRawFd, IntoRawFd};
 use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
 use crate::reactor::op::{self};
+use crate::utils::futures::not_thread_safe;
 use crate::utils::syscall;
 
 use libc::{SOL_SOCKET, SO_REUSEPORT};
@@ -112,6 +113,7 @@ impl Socket {
     }
 
     pub async fn close(self) -> Result<()> {
+        not_thread_safe().await;
         let fd = self.fd;
         forget(self);
         op::close(fd).await

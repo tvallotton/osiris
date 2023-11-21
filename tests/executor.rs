@@ -72,11 +72,10 @@ fn spawn_on_abort() {
 
     impl Drop for SpawnOnDrop {
         fn drop(&mut self) {
-            spawn(async {
+            detach(async {
                 yield_now().await;
                 SUCCESS.with(|val| val.set(true));
-            })
-            .detach();
+            });
         }
     }
 
@@ -140,8 +139,8 @@ fn detach_handle_panic() {
     // test for child tasks
     block_on(async {
         spawn(async {
-            let mut handle = spawn(async { panic!("child panic") });
-            handle.detach();
+            detach(async { panic!("child panic") });
+
             stall().await;
         })
         .await;
@@ -151,10 +150,10 @@ fn detach_handle_panic() {
     .unwrap();
     // test for main task
     block_on(async {
-        let mut handle = spawn(async {
+        detach(async {
             panic!("child panic");
         });
-        handle.detach();
+
         stall().await;
     })
     .unwrap();

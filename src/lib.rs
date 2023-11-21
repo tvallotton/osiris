@@ -6,12 +6,13 @@
 //! * Tools for working with [asynchrnous tasks](task), and [synchronization primitives](sync) for these tasks.
 //! * I/O primitives for [networking](net), [file system access](fs), and [timers/timeout operations](time).
 //!
-//! # Thread per core
+//! # Share-nothing
 //! Osiris follows a share-nothing architecture, avoiding thread synchronization whenever possible.
 //! This means, that most types are `!Send` and `!Sync`. By default, when using the [`main`] macro the
 //! application is single threaded. It can be made multithreaded by settning the `scale` parameter:
 //! ```no_run
-//! // this will spawn one thread per core and set the affinity for each thread to a separate CPU.
+//! // this will spawn one thread per core and set
+//! // the affinity for each thread to a separate CPU.
 //! #[osiris::main(scale = true)]
 //! async fn main() {
 //!     // ...
@@ -27,15 +28,16 @@
 //! ```
 //! If more control is needed over the number of threads, it can be specified explicitly
 //! ```no_run
-//! // this will spawn one thread per core and set the affinity
+//! // this will spawn 4 threads and set the affinity of each
+//! // thread to different core if possible
 //! #[osiris::main(scale = 4)]
 //! async fn main() {
 //!     // ...
 //! }
 //! ```
 //! Note that scaling the application will create identical parallel replicas of the main task, which is useful for a
-//! concurrent server, but not as much for clients. This shouldn't be confused with how  work stealing runtimes worh
-//! (e.g. [`tokio`](https://docs.rs/tokio/latest/tokio/)), that will spawn a pool of worker threads, but the main task will remain a unique.
+//! concurrent server, but not as much for clients. This shouldn't be confused with how  work stealing runtimes work
+//! (e.g. [`tokio`](https://docs.rs/tokio/latest/tokio/)), that will spawn a pool of worker threads, but the main task will remain unique.
 //!
 //! # Working with tasks
 //! In Osiris, tasks can be created using the [`spawn`] function, which returns a [`JoinHandle`](task::JoinHandle).
@@ -49,7 +51,7 @@
 //!
 //! #[osiris::main]
 //! async fn main() {
-//!     let handle  = spawn(async {
+//!     let handle = spawn(async {
 //!         sleep(Duration::from_millis(1500)).await;
 //!         12
 //!     });
@@ -77,7 +79,7 @@
 //! }
 //! ```
 //! ## Detached tasks
-//! Detached tasks in Osiris can be created using the osiris::detach function.
+//! Detached tasks in Osiris can be created using the [`osiris::detach`](crate::detach) function.
 //! Detached tasks are independent of the parent task and do not require explicit
 //! joining or cancellation. They continue to execute independently until completion or termination.
 //! ```
@@ -104,8 +106,6 @@
 //! ## File system
 //! Unlike nonblocking based runtimes, Osiris offers true asynchronous file I/O
 //! ```
-//! # #[cfg(io_uring)]
-//! # {
 //! use osiris::fs::read_to_string;
 //!
 //! #[osiris::main]
@@ -114,7 +114,6 @@
 //!     assert!(data.contains("osiris"));
 //!     Ok(())
 //! }
-//! # }
 //! ```
 //! ## Networking
 //! Osiris offers networking types analogous to the ones found in [`std::net`].
@@ -152,7 +151,20 @@
 //! }
 //! ```
 //!
+//! ### Synchronization
+//! Osiris offers atomic free synchronization primitives. These primitives are designed to synchronize tasks
+//! instead of threads. This means that they are cheaper but they do not implement Send or Sync.
+//! ```
+//! use osiris::sync::mpmc::channel;
+//! use osiris::join;
 //!
+//! #[osiris::main]
+//! async fn main() {
+//!     let (tx, rx) = channel(1);
+//!     let (_, r) = join!(tx.send(42), rx.recv());
+//!     assert_eq!(42, r.unwrap())
+//! }
+//! ```
 
 // #![deny(warnings)]
 #![allow(unused_unsafe)]
@@ -174,7 +186,7 @@ mod utils;
 
 pub mod _priv;
 pub mod buf;
-#[cfg(io_uring)]
+
 pub mod fs;
 pub mod net;
 mod reactor;
@@ -182,3 +194,5 @@ pub mod runtime;
 pub mod sync;
 pub mod task;
 pub mod time;
+#[cfg(test)]
+mod type_assertions;

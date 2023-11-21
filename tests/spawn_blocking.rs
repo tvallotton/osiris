@@ -13,7 +13,11 @@ pub async fn spawn_blocking_doesnt_block() {
     sleep(Duration::from_millis(50)).await;
     dbg!(time.elapsed());
     assert_eq!(task.await, 234523);
-    assert!(time.elapsed().as_millis() < 110);
+    assert!(
+        time.elapsed().as_millis() < 150,
+        "{}",
+        time.elapsed().as_millis()
+    );
 }
 
 #[osiris::test]

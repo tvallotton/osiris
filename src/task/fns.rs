@@ -21,7 +21,7 @@ use std::future::Future;
 /// Panics if called from **outside** of an osiris runtime.
 ///
 #[track_caller]
-#[must_use = "This task is immediatly cancelled after spawn. osiris tasks are cancelled on drop, you may want to `.detach()` it."]
+#[must_use = "This task is immediatly cancelled after spawn. osiris tasks are cancelled on drop, you may want to use `detach()`."]
 pub fn spawn<F>(future: F) -> JoinHandle<<F as Future>::Output>
 where
     F: Future + 'static,
@@ -51,9 +51,7 @@ pub fn detach<F>(future: F) -> JoinHandle<<F as Future>::Output>
 where
     F: Future + 'static,
 {
-    let mut handle = current_unwrap("detach").spawn(future);
-    handle.detach();
-    handle
+    current_unwrap("detach").detach(future)
 }
 
 /// Returns the task id for the currently running task. The task id

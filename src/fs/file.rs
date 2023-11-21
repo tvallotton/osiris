@@ -4,12 +4,13 @@ use crate::buf::{IoBuf, IoBufMut};
 use crate::detach;
 use crate::fs::Metadata;
 use crate::reactor::op;
+use crate::runtime::current;
+use crate::utils::futures::{catch_unwind, not_thread_safe};
 
-use io_uring::types::FsyncFlags;
 use libc::AT_FDCWD;
 use std::io::{self, Error, Result};
 use std::mem::{forget, MaybeUninit};
-use std::os::fd::{FromRawFd, IntoRawFd};
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd};
 use std::path::Path;
 
 use super::{cstr, OpenOptions};
@@ -32,7 +33,7 @@ use super::{cstr, OpenOptions};
 /// # osiris::block_on(async {
 /// use osiris::fs::File;
 ///
-/// let file = File::create("foo.txt").await?;
+/// let mut file = File::create("foo.txt").await?;
 /// file.write_at( b"Hello, world!", 0).await.0?;
 /// # std::io::Result::Ok(()) }).unwrap();
 /// ```
@@ -42,7 +43,11 @@ pub struct File {
 
 impl Drop for File {
     fn drop(&mut self) {
-        detach(op::close(self.fd));
+        let Some(rt) = current() else {
+            unsafe { std::fs::File::from_raw_fd(self.as_raw_fd()) };
+            return;
+        };
+        rt.detach(op::close(self.fd));
     }
 }
 
@@ -177,6 +182,7 @@ impl File {
     /// ```
 
     pub async fn close(self) -> io::Result<()> {
+        not_thread_safe().await;
         let fd = self.fd;
         forget(self);
         op::close(fd).await?;
@@ -212,7 +218,7 @@ impl File {
     /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// let file = File::create("foo.txt").await?;
+    /// let mut file = File::create("foo.txt").await?;
     ///
     /// // Writes some prefix of the byte string, not necessarily all of it.
     /// let (res, _) = file.write_at(&b"some bytes"[..], 0).await;
@@ -226,7 +232,7 @@ impl File {
     /// ```
     ///
     /// [`Ok(n)`]: Ok
-    pub async fn write_at<T: IoBuf>(&self, buf: T, pos: usize) -> (Result<usize>, T) {
+    pub async fn write_at<T: IoBuf>(&mut self, buf: T, pos: usize) -> (Result<usize>, T) {
         op::write_at(self.fd, buf, pos as _).await
     }
 
@@ -311,7 +317,7 @@ impl File {
     /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// let f = File::open("foo.txt").await?;
+    /// let mut f = File::open("foo.txt").await?;
     /// let buffer = vec![0; 10];
     ///
     /// // Read up to 10 bytes
@@ -324,7 +330,7 @@ impl File {
     /// f.close().await?;
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
-    pub async fn read_at<T: IoBufMut>(&self, buf: T, pos: usize) -> (Result<usize>, T) {
+    pub async fn read_at<T: IoBufMut>(&mut self, buf: T, pos: usize) -> (Result<usize>, T) {
         let (res, mut buf) = op::read_at(self.fd, buf, pos as _).await;
         match res {
             Ok(len) => {
@@ -368,7 +374,7 @@ impl File {
     /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// let f = File::open("foo.txt").await?;
+    /// let mut f = File::open("foo.txt").await?;
     /// let buffer = vec![0; 10];
     ///
     /// // Read up to 10 bytes
@@ -381,7 +387,7 @@ impl File {
     /// f.close().await?;
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
-    pub async fn read<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+    pub async fn read<B: IoBufMut>(&mut self, buf: B) -> (Result<usize>, B) {
         let (res, mut buf) = op::read_at(self.fd, buf, -1).await;
         match res {
             Ok(len) => {
@@ -408,7 +414,7 @@ impl File {
     /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// let f = File::create("foo.txt").await?;
+    /// let mut f = File::create("foo.txt").await?;
     /// let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
     /// let n = res?;
     ///
@@ -418,8 +424,8 @@ impl File {
     /// f.close().await?;
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
-    pub async fn sync_all(&self) -> Result<()> {
-        op::fsync(self.fd, FsyncFlags::all()).await?;
+    pub async fn sync_all(&mut self) -> Result<()> {
+        op::fsync(self.fd).await?;
         Ok(())
     }
 
@@ -443,7 +449,7 @@ impl File {
     /// # osiris::block_on(async {
     /// use osiris::fs::File;
     ///
-    /// let f = File::create("foo.txt").await?;
+    /// let mut f = File::create("foo.txt").await?;
     /// let (res, buf) = f.write_at(&b"Hello, world!"[..], 0).await;
     /// let n = res?;
     ///
@@ -453,8 +459,8 @@ impl File {
     /// f.close().await?;
     /// # std::io::Result::Ok(()) }).unwrap();
     /// ```
-    pub async fn sync_data(&self) -> Result<()> {
-        op::fsync(self.fd, FsyncFlags::DATASYNC).await?;
+    pub async fn sync_data(&mut self) -> Result<()> {
+        op::fdatasync(self.fd).await?;
         Ok(())
     }
 
@@ -474,6 +480,25 @@ impl File {
     pub async fn metadata(&self) -> Result<Metadata> {
         let statx = op::statx(self.fd, None, 0).await?;
         Ok(Metadata { statx })
+    }
+    /// Destructures `File` into a [`std::fs::File`].
+    pub fn into_std(self) -> std::fs::File {
+        self.into()
+    }
+
+    /// Converts a [`std::fs::File`] to a [`osiris::fs::File`](File).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// // This line could block. It is not recommended to do this on the Tokio
+    /// // runtime.
+    /// let std_file = std::fs::File::open("foo.txt").unwrap();
+    /// let file = osiris::fs::File::from_std(std_file);
+    /// ```
+
+    pub fn from_std(file: std::fs::File) -> Self {
+        file.into()
     }
 }
 
@@ -513,6 +538,18 @@ pub async fn remove_file(path: impl AsRef<Path>) -> Result<()> {
     _remove_file(path.as_ref()).await
 }
 
+impl From<std::fs::File> for File {
+    fn from(value: std::fs::File) -> Self {
+        unsafe { File::from_raw_fd(value.into_raw_fd()) }
+    }
+}
+
+impl From<File> for std::fs::File {
+    fn from(value: File) -> Self {
+        unsafe { Self::from_raw_fd(value.into_raw_fd()) }
+    }
+}
+
 /// Non generic remove file
 async fn _remove_file(path: &Path) -> Result<()> {
     let path = cstr(path)?;
@@ -528,8 +565,28 @@ impl IntoRawFd for File {
     }
 }
 
+impl AsRawFd for File {
+    fn as_raw_fd(&self) -> std::os::fd::RawFd {
+        self.fd
+    }
+}
+
 impl FromRawFd for File {
     unsafe fn from_raw_fd(fd: std::os::fd::RawFd) -> Self {
         File { fd }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn foo() {
+    use crate::block_on;
+    let file = block_on(async { File::open("Cargo.toml").await.unwrap() }).unwrap();
+
+    let fd1 = file.as_raw_fd();
+    let file: std::fs::File = file.into();
+    let fd2 = file.as_raw_fd();
+    let _file: File = file.into();
+    assert_eq!(fd1, fd2);
+    println!("{fd1} {fd2}");
 }

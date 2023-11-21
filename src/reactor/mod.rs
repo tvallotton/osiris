@@ -23,13 +23,13 @@ use crate::runtime::Config;
 #[cfg(io_uring)]
 mod iouring;
 
-#[cfg(target_os = "macos")]
+#[cfg(kqueue)]
 mod kqueue;
 
 #[cfg(not(io_uring))]
 mod nonblocking;
 
-#[cfg(all(target_os = "linux", not(io_uring)))]
+#[cfg(poll)]
 mod poll;
 
 mod utils;

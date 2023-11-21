@@ -243,7 +243,6 @@ impl OpenOptions {
         self
     }
 
-    #[cfg(unix)]
     /// Opens a file at `path` with the options specified by `self`.
     ///
     /// # Errors

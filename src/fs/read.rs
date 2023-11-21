@@ -32,7 +32,7 @@ pub async fn read(path: impl AsRef<Path>) -> Result<Vec<u8>> {
 }
 
 async fn _read(path: &Path) -> io::Result<Vec<u8>> {
-    let file = File::open(path).await?;
+    let mut file = File::open(path).await?;
     let len = file.metadata().await?.len();
     let buf = Vec::with_capacity(len as _);
     let (result, buf) = file.read_at(buf, 0).await;

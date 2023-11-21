@@ -287,6 +287,8 @@ async fn server(request: Vec<u8>, response: Vec<u8>, tx: crate::sync::mpmc::Send
     let (n, buf) = stream.read(buf).await;
     dbg!("server: read");
     assert_eq!(&buf[..n.unwrap()], &request.clone()[..]);
+    stream.shutdown(std::net::Shutdown::Read).await.unwrap();
+    dbg!("server: shutdown read");
     stream.write(response).await.0.unwrap();
     dbg!("server: wrote");
     stream.shutdown(std::net::Shutdown::Write).await.unwrap();

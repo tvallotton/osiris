@@ -3,6 +3,9 @@ use cfg_aliases::cfg_aliases;
 fn main() {
     // Setup cfg aliases
     cfg_aliases! {
+        poll: {
+            all(not(feature = "io-uring"), target_os="linux")
+        },
         io_uring: {
             all(feature = "io-uring", target_os="linux")
         },

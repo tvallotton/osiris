@@ -1,12 +1,12 @@
 use std::io::Result;
-use std::path::Path;
+use std::path::PathBuf;
 
 use crate::reactor::op;
 
 use super::cstr;
 
-pub async fn symlink(original: impl AsRef<Path>, link: impl AsRef<Path>) -> Result<()> {
-    let original = cstr(original.as_ref())?;
-    let link = cstr(link.as_ref())?;
+pub async fn symlink(original: impl Into<PathBuf>, link: impl Into<PathBuf>) -> Result<()> {
+    let original = cstr(original)?;
+    let link = cstr(link)?;
     op::symlink(original, link).await
 }

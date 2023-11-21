@@ -1,17 +1,17 @@
-use libc::{iovec, msghdr};
+use libc::{iovec, msghdr, AT_FDCWD, AT_SYMLINK_NOFOLLOW};
 use submit::submit_once;
 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::net::utils::{socket_addr, to_std_socket_addr};
 use crate::reactor::op::{make_nonblocking, read_event, write_event};
 use crate::task::spawn_blocking;
-use crate::utils::syscall;
+use crate::utils::{statx, syscall};
 
+use std::ffi::CString;
 use std::io::{Error, Result};
-use std::mem::size_of_val;
+use std::mem::{size_of_val, zeroed};
 use std::net::{Shutdown, SocketAddr};
 use std::os::fd::{FromRawFd, OwnedFd};
-use std::path::PathBuf;
 
 use super::submit;
 
@@ -29,6 +29,41 @@ pub async fn fs_write<B: IoBuf + Send + Sync>(fd: i32, buf: B) -> (Result<usize>
         (r.map(|n| n as usize), buf)
     })
     .await
+}
+
+pub async fn mkdir_at(path: CString) -> Result<()> {
+    spawn_blocking(move || syscall!(mkdirat, libc::AT_FDCWD, path.as_ptr(), 0o666)).await?;
+    Ok(())
+}
+
+pub async fn statx(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
+    let stat = spawn_blocking(move || {
+        let mut stat: libc::stat = unsafe { zeroed() };
+
+        match path {
+            None if flags != AT_SYMLINK_NOFOLLOW => syscall!(fstat, fd, &mut stat)?,
+            Some(path) if flags != AT_SYMLINK_NOFOLLOW => syscall!(stat, path.as_ptr(), &mut stat)?,
+            Some(path) => syscall!(lstat, path.as_ptr(), &mut stat)?,
+            None => {
+                let mut path = [0 as libc::c_char; libc::PATH_MAX as _];
+                syscall!(fcntl, fd, libc::F_GETPATH, &mut path)?;
+                syscall!(lstat, path.as_ptr(), &mut stat)?
+            }
+        };
+
+        Result::Ok(stat)
+    })
+    .await?;
+    Ok(statx::from_stat(stat))
+}
+
+pub async fn unlink_at(path: CString, flags: i32) -> Result<()> {
+    spawn_blocking(move || syscall!(unlinkat, AT_FDCWD, path.as_ptr(), flags)).await?;
+    Ok(())
+}
+
+pub async fn open_at(path: CString, flags: i32, mode: libc::mode_t) -> Result<i32> {
+    spawn_blocking(move || syscall!(openat, AT_FDCWD, path.as_ptr(), flags, mode as u32)).await
 }
 
 pub async fn read_at<B: IoBufMut>(fd: i32, mut buf: B, _pos: i64) -> (Result<usize>, B) {
@@ -59,11 +94,38 @@ pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
     (res.map(|v| v as _), buf)
 }
 
+pub async fn recvfrom<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<(usize, SocketAddr)>, B) {
+    let event = read_event(fd);
+
+    let mut sockaddr: libc::sockaddr = unsafe { zeroed() };
+    let mut sock_len: libc::socklen_t = size_of_val(&sockaddr) as _;
+    let res = submit(event, || {
+        syscall!(
+            recvfrom,
+            fd,
+            buf.stable_mut_ptr().cast(),
+            buf.bytes_total(),
+            0,
+            &mut sockaddr,
+            &mut sock_len,
+        )
+    })
+    .await;
+
+    let res = res.and_then(|read| {
+        let sockaddr = to_std_socket_addr(&sockaddr)?;
+        Ok((read as _, sockaddr))
+    });
+    (res, buf)
+}
+
 pub async fn connect(fd: i32, addr: SocketAddr) -> Result<()> {
     let event = write_event(fd);
 
     let (addr, len) = socket_addr(&addr);
+    dbg!();
     submit_once(event, || syscall!(connect, fd, &addr as *const _ as _, len)).await?;
+
     retrieve_connection_error(fd)?;
     Ok(())
 }
@@ -144,8 +206,13 @@ pub async fn write_nonblock(fd: i32, buf: *const u8, len: usize) -> Result<usize
     Ok(res? as usize)
 }
 
-pub async fn symlink(original: impl Into<PathBuf>, link: impl Into<PathBuf>) -> Result<()> {
-    let original: PathBuf = original.into();
-    let link: PathBuf = link.into();
-    spawn_blocking(move || std::os::unix::fs::symlink(original, link)).await
+pub async fn fsync(fd: i32) -> Result<()> {
+    spawn_blocking(move || syscall!(fsync, fd)).await?;
+    Ok(())
+}
+
+pub async fn symlink(original: CString, link: CString) -> Result<()> {
+    spawn_blocking(move || syscall!(symlinkat, original.as_ptr(), libc::AT_FDCWD, link.as_ptr()))
+        .await?;
+    Ok(())
 }
