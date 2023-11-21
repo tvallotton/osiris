@@ -271,8 +271,6 @@ async fn client(request: Vec<u8>, response: Vec<u8>, rx: crate::sync::mpmc::Rece
     let (n, buf) = stream.read(buf).await;
     dbg!("client: read");
     assert_eq!(&buf[..n.unwrap()], &response[..]);
-    stream.shutdown(std::net::Shutdown::Read).await.unwrap();
-    dbg!("client: shutdown");
     stream.close().await.unwrap();
     dbg!("client: closed");
 }
@@ -293,8 +291,7 @@ async fn server(request: Vec<u8>, response: Vec<u8>, tx: crate::sync::mpmc::Send
     dbg!("server: wrote");
     stream.shutdown(std::net::Shutdown::Write).await.unwrap();
     dbg!("server: shutdown write");
-    stream.shutdown(std::net::Shutdown::Both).await.unwrap();
-    dbg!("server: shutdown read");
+
     stream.close().await.unwrap();
     dbg!("server: close stream");
     listener.close().await.unwrap();

@@ -73,8 +73,8 @@ impl Socket {
         op::send_to(self.fd, buf, addr).await
     }
 
-    pub async fn shutdown(&self, _how: Shutdown) -> Result<()> {
-        // op::shutdown(self.fd, how).await
+    pub async fn shutdown(&self, how: Shutdown) -> Result<()> {
+        op::shutdown(self.fd, how).await?;
         Ok(())
     }
 
