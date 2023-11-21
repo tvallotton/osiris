@@ -1,4 +1,3 @@
-#![cfg(io_uring)]
 use osiris::fs::{
     self, create_dir, metadata, remove_dir, remove_file, symlink, symlink_metadata, File,
     OpenOptions,
@@ -34,10 +33,10 @@ async fn create_and_rm_dir() {
 #[osiris::test]
 async fn read_write_test() {
     let path = "tests/fs_test_files/read_write_test.txt";
-    let file = File::create(path).await.unwrap();
+    let mut file = File::create(path).await.unwrap();
     file.write_at("contents", 0).await.0.unwrap();
     file.close().await.unwrap();
-    let file = File::open(path).await.unwrap();
+    let mut file = File::open(path).await.unwrap();
     let buf = vec![0; 256];
     let (res, buf) = file.read_at(buf, 0).await;
     let len = res.unwrap();
@@ -86,7 +85,7 @@ async fn test_permisions() {
 #[osiris::test]
 async fn test_sync() {
     let path = "tests/fs_test_files/test_sync.txt";
-    let file = File::create(path).await.unwrap();
+    let mut file = File::create(path).await.unwrap();
     file.write("some data").await.0.unwrap();
     file.sync_data().await.unwrap();
     file.sync_all().await.unwrap();

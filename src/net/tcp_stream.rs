@@ -5,6 +5,7 @@ use std::os::fd::{FromRawFd, IntoRawFd};
 
 use crate::buf::{IoBuf, IoBufMut};
 use crate::reactor::op;
+use crate::utils::futures::not_thread_safe;
 
 use super::socket::{Domain, Protocol, Socket, Type};
 use super::to_socket_addr::{try_until_success, ToSocketAddrs};
@@ -228,6 +229,7 @@ impl TcpStream {
     /// }
     /// ```
     pub async fn shutdown(&mut self, how: Shutdown) -> Result<()> {
+        not_thread_safe().await;
         self.socket.shutdown(how).await
     }
     /// Closes the file descriptor. Calling this method is recommended

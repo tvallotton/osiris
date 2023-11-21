@@ -1,5 +1,6 @@
 use std::any::Any;
-use std::future::{poll_fn, Future};
+use std::cell::Cell;
+use std::future::{poll_fn, ready, Future};
 use std::panic::{self, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::Poll;
@@ -17,4 +18,10 @@ where
         }
     })
     .await
+}
+
+pub async fn not_thread_safe() {
+    let cell = Cell::new(());
+    ready(()).await;
+    cell.set(());
 }

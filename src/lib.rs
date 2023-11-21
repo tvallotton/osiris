@@ -6,7 +6,7 @@
 //! * Tools for working with [asynchrnous tasks](task), and [synchronization primitives](sync) for these tasks.
 //! * I/O primitives for [networking](net), [file system access](fs), and [timers/timeout operations](time).
 //!
-//! # Thread per core
+//! # Share-nothing
 //! Osiris follows a share-nothing architecture, avoiding thread synchronization whenever possible.
 //! This means, that most types are `!Send` and `!Sync`. By default, when using the [`main`] macro the
 //! application is single threaded. It can be made multithreaded by settning the `scale` parameter:
@@ -49,7 +49,7 @@
 //!
 //! #[osiris::main]
 //! async fn main() {
-//!     let handle  = spawn(async {
+//!     let handle = spawn(async {
 //!         sleep(Duration::from_millis(1500)).await;
 //!         12
 //!     });
@@ -77,7 +77,7 @@
 //! }
 //! ```
 //! ## Detached tasks
-//! Detached tasks in Osiris can be created using the osiris::detach function.
+//! Detached tasks in Osiris can be created using the [`osiris::detach`](crate::detach) function.
 //! Detached tasks are independent of the parent task and do not require explicit
 //! joining or cancellation. They continue to execute independently until completion or termination.
 //! ```
@@ -152,6 +152,8 @@
 //! }
 //! ```
 //!
+//! ## Joining futures
+//!
 //!
 
 // #![deny(warnings)]
@@ -182,3 +184,5 @@ pub mod runtime;
 pub mod sync;
 pub mod task;
 pub mod time;
+#[cfg(test)]
+mod type_assertions;

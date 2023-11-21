@@ -1,4 +1,5 @@
 #![allow(unreachable_code)]
+
 use super::cstr;
 use crate::reactor::op;
 use crate::utils::{statx, statx_timestamp};
@@ -129,7 +130,7 @@ impl Metadata {
     pub fn accessed(&self) -> std::io::Result<SystemTime> {
         #[cfg(target_family = "unix")]
         return Ok(system_time(self.statx.stx_atime));
-        return Err(Error::from(io::ErrorKind::Unsupported));
+        Err(Error::from(io::ErrorKind::Unsupported))
     }
 
     /// Returns the creation time listed in this metadata.
@@ -160,7 +161,7 @@ impl Metadata {
     pub fn created(&self) -> std::io::Result<SystemTime> {
         #[cfg(target_family = "unix")]
         return Ok(system_time(self.statx.stx_ctime));
-        return Err(Error::from(io::ErrorKind::Unsupported));
+        Err(Error::from(io::ErrorKind::Unsupported))
     }
 
     /// Returns the last modification time listed in this metadata.

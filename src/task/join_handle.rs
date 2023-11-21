@@ -10,7 +10,7 @@ use super::Task;
 
 /// A handle to the spawned task. By default the task will be cancelled
 /// when the join handle gets dropped. In order to detach on drop the
-/// [`.detach()`](JoinHandle::detach) method should be called.
+/// [`detach()`](crate::task::detach) method should be called.
 ///
 /// # Panics
 /// Awating a task will panic if the awaited task panicked.
@@ -30,7 +30,7 @@ impl<T> JoinHandle<T> {
     ///
     /// Detached tasks can be aborted with the [`JoinHandle::abort`] method.
     #[inline]
-    pub fn detach(&mut self) {
+    pub(crate) fn detach(&mut self) {
         self.detached = true;
     }
 
