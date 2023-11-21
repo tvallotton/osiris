@@ -27,7 +27,10 @@ slab = "0.4.9"
 
 
 [target.'cfg(target_os = "linux")']
-rustflags = ["-C", "link-arg=-Wl,-dynamic-linker=/usr/lib/ld-linux-aarch64.so.1"]
+rustflags = [
+    "-C",
+    "link-arg=-Wl,-dynamic-linker=/usr/lib/ld-linux-aarch64.so.1",
+]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -35,8 +38,11 @@ io-uring = { version = "0.6.2", optional = true }
 
 [dev-dependencies]
 dotenv = "0.15.0"
-osiris = { path = ".", default-features=false, features = ["macros"] }
-tokio = {version = "1.28.2", features=["sync"]}
+osiris = { path = ".", default-features = false, features = [
+    "macros",
+    "io-uring",
+] }
+tokio = { version = "1.28.2", features = ["sync"] }
 futures = "0.3.28"
 
 [build-dependencies]

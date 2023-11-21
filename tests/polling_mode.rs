@@ -26,7 +26,7 @@ fn polling_mode() {
 
 async fn client() {
     sleep(Duration::from_millis(10)).await;
-    let stream = TcpStream::connect("localhost:9080").await.unwrap();
+    let mut stream = TcpStream::connect("localhost:9080").await.unwrap();
 
     stream.write(CLIENT_MSG).await.0.unwrap();
 
@@ -38,7 +38,7 @@ async fn client() {
 
 async fn server() {
     let listener = TcpListener::bind("127.0.0.1:9080").await.unwrap();
-    let (client, _) = listener.accept().await.unwrap();
+    let (mut client, _) = listener.accept().await.unwrap();
     let buf = vec![0; 20];
 
     let (written, buf) = client.read(buf).await;

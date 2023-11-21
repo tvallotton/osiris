@@ -123,7 +123,7 @@
 //!
 //! #[osiris::main]
 //! async fn main() -> std::io::Result<()> {
-//!     let stream = TcpStream::connect("www.example.com:80").await?;
+//!     let mut stream = TcpStream::connect("www.example.com:80").await?;
 //!     stream
 //!         .write_all(b"GET / HTTP/1.1\r\nHost: www.example.com\r\n\r\n")
 //!         .await.0?;

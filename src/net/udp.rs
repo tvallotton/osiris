@@ -27,19 +27,19 @@ where {
         try_until_success(addr, |addr| self.socket.connect(addr)).await
     }
     /// The recv() call is normally used only on a connected socket (see connect(2)). It is equivalent to the call:
-    pub async fn recv<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+    pub async fn recv<B: IoBufMut>(&mut self, buf: B) -> (Result<usize>, B) {
         self.socket.recv(buf).await
     }
 
-    pub async fn read<B: IoBufMut>(&self, buf: B) -> (Result<usize>, B) {
+    pub async fn read<B: IoBufMut>(&mut self, buf: B) -> (Result<usize>, B) {
         self.socket.read(buf).await
     }
 
-    pub async fn write<B: IoBuf>(&self, buf: B) -> (Result<usize>, B) {
+    pub async fn write<B: IoBuf>(&mut self, buf: B) -> (Result<usize>, B) {
         self.socket.write(buf).await
     }
 
-    pub async fn send_to<B: IoBuf>(&self, buf: B, addr: SocketAddr) -> (Result<usize>, B) {
+    pub async fn send_to<B: IoBuf>(&mut self, buf: B, addr: SocketAddr) -> (Result<usize>, B) {
         self.socket.send_to(buf, addr).await
     }
 }
@@ -51,8 +51,8 @@ fn udp_server_and_client() {
         let second_addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
 
         // bind sockets
-        let alice = UdpSocket::bind(first_addr).await?;
-        let bob = UdpSocket::bind(second_addr).await?;
+        let mut alice = UdpSocket::bind(first_addr).await?;
+        let mut bob = UdpSocket::bind(second_addr).await?;
 
         // connect sockets
         alice.connect(second_addr).await.unwrap();

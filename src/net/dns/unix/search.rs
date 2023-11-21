@@ -180,7 +180,7 @@ async fn question_with_udp(
     let mut addrs = vec![];
 
     // Write the query to the nameserver address.
-    let socket = UdpSocket::bind(("0.0.0.0", 0)).await?;
+    let mut socket = UdpSocket::bind(("0.0.0.0", 0)).await?;
     let foreign_addr = SocketAddr::new(nameserver, 53);
 
     // UDP queries are limited to 512 bytes.
@@ -260,7 +260,7 @@ async fn question_with_tcp(id: u16, query: impl IoBuf, nameserver: IpAddr) -> Re
     }
 
     // Open the socket to the server.
-    let socket = TcpStream::connect((nameserver, 53)).await?;
+    let mut socket = TcpStream::connect((nameserver, 53)).await?;
 
     // Write the length of the query.
     let len_bytes = (query.bytes_init() as u16).to_be_bytes();
