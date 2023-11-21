@@ -192,7 +192,7 @@ impl Metadata {
     pub fn modified(&self) -> io::Result<SystemTime> {
         #[cfg(target_family = "unix")]
         return Ok(system_time(self.statx.stx_mtime));
-        return Err(Error::from(io::ErrorKind::Unsupported));
+        Err(Error::from(io::ErrorKind::Unsupported))
     }
 
     /// Returns `true` if this metadata is for a directory. The

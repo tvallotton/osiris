@@ -1,12 +1,10 @@
 use std::net::{Shutdown, SocketAddr};
-use std::rc::Rc;
 use std::time::Duration;
 
 use crate::fs::{File, OpenOptions};
 use crate::net::{TcpStream, UdpSocket};
 use crate::task::JoinHandle;
 use crate::time::{sleep, timeout};
-use crate::utils::futures::not_thread_safe;
 
 macro_rules! assert_not_impl {
     ($e:expr, $($t:path),+ $(,)*) => {{

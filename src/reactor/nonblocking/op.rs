@@ -1,4 +1,4 @@
-use libc::{iovec, msghdr, sockaddr};
+use libc::{iovec, msghdr};
 use submit::submit_once;
 
 use crate::buf::{IoBuf, IoBufMut};
@@ -87,29 +87,30 @@ pub async fn recv<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<usize>, B) {
     (res.map(|v| v as _), buf)
 }
 
-// pub async fn recvfrom<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<(usize, SocketAddr)>, B) {
-//     let event = read_event(fd);
+pub async fn recvfrom<B: IoBufMut>(fd: i32, mut buf: B) -> (Result<(usize, SocketAddr)>, B) {
+    let event = read_event(fd);
 
-//     let mut sockaddr: libc::sockaddr = unsafe { zeroed() };
-//     let mut sock_len: libc::socklen_t = size_of_val(&sockaddr) as _;
-//     let res = submit(event, || {
-//         syscall!(
-//             recvfrom,
-//             fd,
-//             buf.stable_mut_ptr().cast(),
-//             buf.bytes_total(),
-//             &mut sockaddr,
-//             &mut sock_len,
-//         )
-//     })
-//     .await;
+    let mut sockaddr: libc::sockaddr = unsafe { zeroed() };
+    let mut sock_len: libc::socklen_t = size_of_val(&sockaddr) as _;
+    let res = submit(event, || {
+        syscall!(
+            recvfrom,
+            fd,
+            buf.stable_mut_ptr().cast(),
+            buf.bytes_total(),
+            0,
+            &mut sockaddr,
+            &mut sock_len,
+        )
+    })
+    .await;
 
-//     if let Ok(q ) = res {
-
-//     }
-
-//     (, buf)
-// }
+    let res = res.and_then(|read| {
+        let sockaddr = to_std_socket_addr(&sockaddr)?;
+        Ok((read as _, sockaddr))
+    });
+    (res, buf)
+}
 
 pub async fn connect(fd: i32, addr: SocketAddr) -> Result<()> {
     let event = write_event(fd);

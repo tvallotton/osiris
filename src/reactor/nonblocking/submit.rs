@@ -17,7 +17,6 @@ pub async fn wait(event: Event) -> io::Result<()> {
     let mut submitted = false;
     let mut guard = None;
     poll_fn(|cx| {
-        dbg!();
         if submitted {
             return Poll::Ready(Ok(()));
         }
@@ -63,7 +62,6 @@ where
             let Some(libc::EAGAIN | libc::EINPROGRESS) = err.raw_os_error() else {
                 return Err(err);
             };
-            dbg!();
             wait(event).await
         }
         _ => Ok(()),

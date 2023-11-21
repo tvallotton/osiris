@@ -139,7 +139,7 @@ fn detach_handle_panic() {
     // test for child tasks
     block_on(async {
         spawn(async {
-            let handle = detach(async { panic!("child panic") });
+            detach(async { panic!("child panic") });
 
             stall().await;
         })
@@ -150,7 +150,7 @@ fn detach_handle_panic() {
     .unwrap();
     // test for main task
     block_on(async {
-        let handle = detach(async {
+        detach(async {
             panic!("child panic");
         });
 

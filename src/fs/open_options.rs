@@ -2,7 +2,6 @@
 // credits to the authors at osiris
 use crate::fs::File;
 use crate::reactor::op;
-use crate::utils::futures::not_thread_safe;
 use std::io::{self, Error, Result};
 use std::path::Path;
 
