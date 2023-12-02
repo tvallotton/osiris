@@ -79,7 +79,7 @@
 //! }
 //! ```
 //! ## Detached tasks
-//! Detached tasks in Osiris can be created using the [`osiris::detach`](crate::detach) function.
+//! Detached tasks in Osiris can be created using the [`osiris::detach`] function.
 //! Detached tasks are independent of the parent task and do not require explicit
 //! joining or cancellation. They continue to execute independently until completion or termination.
 //! ```
@@ -151,7 +151,7 @@
 //! }
 //! ```
 //!
-//! ### Synchronization
+//! ## Synchronization
 //! Osiris offers atomic free synchronization primitives. These primitives are designed to synchronize tasks
 //! instead of threads. This means that they are cheaper but they do not implement Send or Sync.
 //! ```
@@ -165,6 +165,32 @@
 //!     assert_eq!(42, r.unwrap())
 //! }
 //! ```
+//!
+//! # Tokio compatibility
+//! Osiris offers the compile time feature `tokio_compat` to enable support for Tokio.
+//! ### Examples
+//! Using Tokio futures from an Osiris executor
+//! ```no_run
+//! # #![cfg(features = "tokio_compat")]
+//! use tokio::time::{sleep, Duration};
+//!
+//! #[osiris::main]
+//! async fn main() {
+//!     sleep(Duration::from_secs(1)).await;
+//! }
+//! ```
+//!
+//! Using Osiris futures from a Tokio executor
+//! ```no_run
+//! # #![cfg(features = "tokio_compat")]
+//! use osiris::time::{sleep, Duration};
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     sleep(Duration::from_secs(1)).await;
+//! }
+//! ```
+//!
 
 // #![deny(warnings)]
 #![allow(unused_unsafe)]
@@ -176,6 +202,8 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(clippy::struct_excessive_bools)]
 #![allow(clippy::borrow_as_ptr)]
+
+extern crate self as osiris;
 
 #[cfg(feature = "macros")]
 pub use osiris_macros::{main, test};

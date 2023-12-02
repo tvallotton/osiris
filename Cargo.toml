@@ -9,6 +9,7 @@ edition = "2021"
 [features]
 # default = ["io-uring"]
 macros = ["osiris-macros"]
+tokio_compat = ["tokio/rt"]
 
 [profile.release]
 debug = true
@@ -24,7 +25,7 @@ num_cpus = "1.15.0"
 osiris-macros = { version = "0.1", path = "./osiris-macros", optional = true }
 pin-project-lite = "0.2.9"
 slab = "0.4.9"
-
+tokio = { version = "1.28.2", optional = true, features = ["rt"] }
 
 [target.'cfg(target_os = "linux")']
 rustflags = [

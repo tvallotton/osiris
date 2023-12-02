@@ -1,6 +1,6 @@
 use crate::buf::IoBuf;
 
-/// A mutable`io-uring` compatible buffer.
+/// A mutable `io-uring` compatible buffer.
 ///
 /// The `IoBufMut` trait is implemented by buffer types that can be passed to
 /// io-uring operations. Users will not need to use this trait directly.

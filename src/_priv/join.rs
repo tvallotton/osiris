@@ -28,7 +28,7 @@ use std::task::{Context, Poll, Waker};
 /// 1. It does not poll spuriously (i.e. it doesn't poll branches that weren't woken).
 /// 2. It doesn't require one allocation per future.
 ///
-/// It however has one drawback when compared to Tokio's `join!` macro implemtation, and that
+/// It however has one drawback when compared to Tokio's `join!` macro implementation, and that
 /// is that it incurs in a single memory allocation. This implementation effectively trades off
 /// the spurious polling in exchange for a memory allocation.
 ///

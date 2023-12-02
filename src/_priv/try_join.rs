@@ -28,7 +28,7 @@ use super::{cast, JoinWaker};
 /// 1. It does not poll spuriously (i.e. it doesn't poll branches that weren't woken).
 /// 2. It doesn't require one allocation per future.
 ///
-/// It however has one drawback when compared to Tokio's `try_join!` macro implemtation, and that
+/// It however has one drawback when compared to Tokio's `try_join!` macro implementation, and that
 /// is that it incurs in a single memory allocation. This implementation effectively trades off
 /// the spurious polling in exchange for a memory allocation.
 ///
@@ -42,13 +42,12 @@ use super::{cast, JoinWaker};
 /// ```
 /// async fn do_stuff_async() -> Result<i32, &'static str> {
 ///     // async work
-///     
-/// # Ok(1)
+///     Ok(1)
 /// }
 ///
 /// async fn more_async_work() -> Result<i32, &'static str> {
 ///     // more here
-/// # Ok(2)
+///     Ok(2)
 /// }
 ///
 /// #[osiris::main]

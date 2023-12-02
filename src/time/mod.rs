@@ -4,7 +4,7 @@
 //!
 //! * [`sleep`] is a future that does no work and completes after a minimum duration has elapsed.
 //!
-//! * [`timeout`](timeout::timeout): Wraps a future or stream, setting an upper bound to the amount
+//! * [`timeout`](timeout::timeout()): Wraps a future or stream, setting an upper bound to the amount
 //!   of time it is allowed to execute. If the future or stream does not
 //!   complete in time, then it is canceled and an error is returned.
 //!
