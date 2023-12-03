@@ -25,6 +25,7 @@ pub(crate) struct Executor {
     /// A pipe sender used for wakeups across threads.
     pub(crate) sender: Arc<pipe::Sender>,
     pub(crate) receiver: Rc<pipe::Receiver>,
+    pub(crate) queue_entries: u32,
 }
 
 fn catch_unwind<T>(f: impl FnOnce() -> T) -> Result<T, Box<dyn Any + Send>> {
@@ -33,7 +34,9 @@ fn catch_unwind<T>(f: impl FnOnce() -> T) -> Result<T, Box<dyn Any + Send>> {
 
 impl Executor {
     /// Creates a new executor
-    pub fn new(Config { init_capacity, .. }: Config) -> Result<Executor, Error> {
+    #[rustfmt::skip]
+    pub fn new(config: Config) -> Result<Executor, Error> {
+        let Config { init_capacity, queue_entries,.. } = config;
         let (sender, receiver) = pipe::pipe()?;
         Ok(Executor {
             queue: RefCell::new(VecDeque::with_capacity(init_capacity)),
@@ -41,6 +44,7 @@ impl Executor {
             task_id: Cell::default(),
             sender: Arc::new(sender),
             receiver: Rc::new(receiver),
+            queue_entries,
         })
     }
 
@@ -88,8 +92,8 @@ impl Executor {
     /// It polls at most `ticks` futures. It may poll less futures than
     /// the specified number of ticks.
     #[inline]
-    pub fn poll(&self, task_id: &Cell<Option<u64>>, len: u32) {
-        for _ in 0..len {
+    pub fn poll(&self, task_id: &Cell<Option<u64>>) {
+        for _ in 0..self.queue_entries {
             // we retrieve the queue of woken tasks
             let mut run_queue = self.queue.borrow_mut();
             let Some(task) = run_queue.pop_front() else {

@@ -9,7 +9,7 @@ edition = "2021"
 [features]
 # default = ["io-uring"]
 macros = ["osiris-macros"]
-tokio_compat = ["tokio/rt"]
+tokio_compat = ["tokio/rt", "tokio/net"]
 
 [profile.release]
 debug = true
@@ -42,6 +42,7 @@ dotenv = "0.15.0"
 osiris = { path = ".", default-features = false, features = [
     "macros",
     "io-uring",
+    "tokio_compat",
 ] }
 tokio = { version = "1.28.2", features = ["sync"] }
 futures = "0.3.28"

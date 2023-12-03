@@ -1,5 +1,5 @@
 #!/bin/sh
 
 cargo +nightly fmt
-cargo test -F macros, tokio_compat
+cargo test -F macros -F tokio_compat
 

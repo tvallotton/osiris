@@ -200,7 +200,7 @@ impl Runtime {
                     return Ok(out);
                 }
             }
-            executor.poll(task_id, config.queue_entries);
+            executor.poll(task_id);
 
             if executor.is_idle() && !executor.main_handle.get() {
                 reactor.submit_and_wait()?;
@@ -223,6 +223,13 @@ impl Runtime {
         let new_rt = Some(self.clone());
         let rt = RUNTIME.with(|cell| cell.replace(new_rt));
         Enter(rt, &())
+    }
+
+    async fn run_in_tokio(self) -> io::Result<()> {
+        loop {
+            TASK_ID.with(|task_id| self.executor.poll(task_id));
+            self.reactor.submit().await;
+        }
     }
 
     /// Spawns a new task onto the runtime returning a `JoinHandle` for that task.    
@@ -276,7 +283,7 @@ impl Runtime {
 #[track_caller]
 #[must_use]
 pub fn current() -> Option<Runtime> {
-    RUNTIME.with(|cell| cell.borrow().clone())
+    return RUNTIME.with(|cell| cell.borrow().clone());
 }
 
 /// Run a future to completion on the current thread.
@@ -296,6 +303,15 @@ pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
 #[inline]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
     let Some(rt) = current() else {
+        #[cfg(feature = "tokio_compat")]
+        {
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let rt = Config::default().build().unwrap();
+                tokio::task::spawn_local(rt.clone().run_in_tokio());
+                return rt;
+            }
+        }
+
         panic!("called `{fun}` from the outside of a runtime context.")
     };
     rt

@@ -180,14 +180,20 @@
 //! }
 //! ```
 //!
-//! Using Osiris futures from a Tokio executor
+//! Using Osiris futures from a Tokio executor. Note that the Tokio executor requires a local set to be able to run 
+//! Osiris futures. This is because Osiris needs to be able to spawn a task to run the future on Tokio, but
+//! it needs to spawn a `!Send` task, which can only be done with `LocalSet`. 
 //! ```no_run
 //! # #![cfg(features = "tokio_compat")]
 //! use osiris::time::{sleep, Duration};
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     sleep(Duration::from_secs(1)).await;
+//!     let local = tokio::task::LocalSet::new(); 
+//! 
+//!     local.run_until(async {
+//!         sleep(Duration::from_secs(1)).await;
+//!     }); 
 //! }
 //! ```
 //!

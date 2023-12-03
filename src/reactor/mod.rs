@@ -16,6 +16,9 @@ pub(crate) use poll::{op, Driver, Event};
 #[cfg(kqueue)]
 pub(crate) use kqueue::{op, Driver, Event};
 
+#[cfg(feature = "tokio_compat")]
+pub use tokio::io::unix::AsyncFd;
+
 use crate::runtime::Config;
 
 // #[cfg(target_os = "linux")]
@@ -37,30 +40,49 @@ mod utils;
 /// The driver stores the wakers for all the tasks that
 /// are waiting for IO and it will wake them when it is
 #[derive(Clone)]
-pub(crate) struct Reactor(Rc<RefCell<Driver>>);
+pub(crate) struct Reactor {
+    driver: Rc<RefCell<Driver>>,
+    #[cfg(feature = "tokio_compat")]
+    async_fd: Rc<AsyncFd<i32>>,
+}
 impl Reactor {
     // creates a new shared driver.
     pub fn new(config: Config) -> io::Result<Self> {
         let driver = Driver::new(config)?;
         let driver = RefCell::new(driver);
         let driver = Rc::new(driver);
-        Ok(Self(driver))
+        Ok(Self {
+            #[cfg(feature = "tokio_compat")]
+            async_fd: {
+                let fd = driver.borrow();
+                Rc::new(AsyncFd::new(fd.fd())?)
+            },
+            driver,
+        })
     }
     /// submits all io-events to the kernel and waits for at least one completion event.
     pub fn submit_and_wait(&self) -> io::Result<()> {
-        let mut reactor = self.0.borrow_mut();
-        reactor.submit_and_wait()?;
+        let mut driver = self.driver();
+        driver.submit_and_wait()?;
         Ok(())
     }
     /// submits all io-events to the kernel and yields immediately without blocking the thread.
     pub fn submit_and_yield(&self) -> io::Result<()> {
-        let mut reactor = self.0.borrow_mut();
-        reactor.submit_and_yield()?;
+        let mut driver = self.driver();
+        driver.submit_and_yield()?;
+        Ok(())
+    }
+
+    #[cfg(feature = "tokio_compat")]
+    pub async fn submit(&self) -> io::Result<()> {
+        let mut driver = self.driver();
+        driver.submit_and_yield()?;
+        self.async_fd.readable().await;
         Ok(())
     }
 
     pub fn driver(&self) -> RefMut<'_, Driver> {
-        self.0.borrow_mut()
+        self.driver.borrow_mut()
     }
 
     /// This function is used to poll the driver about a specific event.

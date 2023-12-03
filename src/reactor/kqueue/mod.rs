@@ -19,13 +19,13 @@ pub(crate) struct Driver {
     fd: OwnedFd,
     /// the stack of events we are interested in
     queue: Vec<libc::kevent>,
-
     wakers: Slab<Waker>,
 }
 
 impl Driver {
     pub fn new(config: Config) -> io::Result<Driver> {
         let fd = unsafe { libc::kqueue() };
+
         if fd < 0 {
             return Err(Error::last_os_error());
         }
@@ -88,5 +88,9 @@ impl Driver {
             waker.wake_by_ref();
         }
         self.queue.clear();
+    }
+
+    pub fn fd(&self) -> i32 {
+        self.fd.as_raw_fd()
     }
 }
