@@ -1,5 +1,5 @@
 #![allow(warnings)]
-use crate::utils::{statx, syscall, STATX_ALL};
+use crate::utils::{statx, syscall, STATX_BASIC_STATS};
 use io_uring::opcode::{
     self, Accept, Close, Connect, Fsync, MkDirAt, OpenAt, PollAdd, PollRemove, Read, Recv, SendMsg,
     Socket, Statx, SymlinkAt, Timeout, UnlinkAt, Write,
@@ -107,7 +107,7 @@ pub async fn epoll_ctl(epfd: i32, fd: i32) {}
 /// ```ignore
 /// let statx = op::statx(libc::AT_FDCWD, Some(path)).await?;
 /// ```
-pub async fn stat(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
+pub async fn statx(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
     let pathname = path
         .as_ref()
         .map(|x| x.as_ptr())
@@ -115,7 +115,7 @@ pub async fn stat(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
     let statx = std::mem::MaybeUninit::<statx>::uninit();
     let mut statx = Box::new(statx);
     let sqe = Statx::new(Fd(fd), pathname, statx.as_mut_ptr().cast())
-        .mask(STATX_ALL)
+        .mask(STATX_BASIC_STATS)
         .flags(if path.is_none() {
             flags | libc::AT_EMPTY_PATH
         } else {

@@ -35,7 +35,7 @@ pub async fn mkdir_at(path: CString) -> Result<()> {
     spawn_blocking(move || syscall!(mkdirat, libc::AT_FDCWD, path.as_ptr(), 0o666)).await?;
     Ok(())
 }
-
+#[cfg(not(target_os = "linux"))]
 pub async fn statx(fd: i32, path: Option<CString>, flags: i32) -> Result<statx> {
     let stat = spawn_blocking(move || {
         let mut stat: libc::stat = unsafe { zeroed() };

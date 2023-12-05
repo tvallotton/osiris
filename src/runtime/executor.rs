@@ -112,6 +112,7 @@ impl Executor {
                 task.panic(payload);
             };
         }
+        task_id.set(None);
     }
 
     /// returns true if there is no more work to do

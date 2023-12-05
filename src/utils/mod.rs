@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types)]
 
-pub use stat::{statx, statx_timestamp};
+pub use stat::{statx, statx_timestamp, STATX_BASIC_STATS};
 
 pub(crate) mod buf;
 pub(crate) mod futures;

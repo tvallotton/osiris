@@ -8,6 +8,7 @@ use std::rc::Rc;
 use std::task::{RawWaker, RawWakerVTable, Waker};
 
 /// creates a waker for the main task.
+#[inline]
 pub(crate) fn main_waker() -> Waker {
     // Safety:
     // data: *const () is never accessed

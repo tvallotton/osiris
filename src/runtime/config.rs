@@ -129,12 +129,22 @@ impl Config {
     /// # Errors
     /// If the async primitives could not be instantiated.
     pub fn build(self) -> std::io::Result<Runtime> {
-        let executor = Rc::new(Executor::new(self.clone())?);
+        #[cfg(tokio)]
+        let tokio: Rc<_> = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .build()?
+            .into();
+        #[cfg(tokio)]
+        let _guard = tokio.enter();
+
         let reactor = Reactor::new(self.clone())?;
+        let executor = Rc::new(Executor::new(self.clone())?);
         let rt = Runtime {
-            config: self,
             executor,
             reactor,
+            config: self,
+            #[cfg(tokio)]
+            tokio,
         };
         Ok(rt)
     }

@@ -70,6 +70,8 @@ use std::io;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
+#[cfg(tokio)]
+use tokio::{runtime::Builder, task::LocalSet};
 
 pub use config::{Config, Mode};
 pub(crate) use globals::{RUNTIME, TASK_ID, THREAD_POOL};
@@ -86,9 +88,11 @@ type TaskId<'a> = &'a Cell<Option<u64>>;
 /// The osiris local runtime.
 #[derive(Clone)]
 pub struct Runtime {
-    pub(crate) config: Config,
     pub(crate) executor: Rc<Executor>,
     pub(crate) reactor: Reactor,
+    pub(crate) config: Config,
+    #[cfg(tokio)]
+    pub(crate) tokio: Rc<tokio::runtime::Runtime>,
 }
 
 impl Runtime {
@@ -178,37 +182,91 @@ impl Runtime {
 
         TASK_ID.with(|task_id| self.event_loop(handle, task_id))
     }
+
     /// This is the main loop
+    #[cfg(not(tokio))]
+    #[rustfmt::skip]
     fn event_loop<T>(&self, handle: &mut JoinHandle<T>, task_id: TaskId) -> io::Result<T> {
-        let Runtime {
-            executor,
-            reactor,
-            config,
-        } = self;
-
-        let handel_waker = main_waker();
-        let handle_cx = &mut Context::from_waker(&handel_waker);
-
+        let Runtime { executor, reactor, .. } = self;
         loop {
             // we must poll the JoinHandle before polling the executor.
             // So the join waker gets registered on the task before it
             // completes.
-            let handle = Pin::new(&mut *handle);
-            if executor.main_handle.get() {
-                executor.main_handle.set(false);
-                if let Poll::Ready(out) = handle.poll(handle_cx) {
-                    return Ok(out);
-                }
+            if let Poll::Ready(out) = self.poll_main_task(handle, task_id) {
+                return Ok(out)
             }
             executor.poll(task_id);
-
-            if executor.is_idle() && !executor.main_handle.get() {
-                reactor.submit_and_wait()?;
-            } else {
-                reactor.submit_and_yield()?;
-            }
+            self.poll_reactor_blocking()?;
         }
     }
+
+    #[cfg(tokio)]
+    #[rustfmt::skip]
+    fn event_loop<T>(&self, handle: &mut JoinHandle<T>, task_id: TaskId) -> io::Result<T> {
+        let local = LocalSet::new();
+        let Runtime { executor, tokio, .. } = self;
+        local.block_on(tokio, async {
+            loop {
+                // we must poll the JoinHandle before polling the executor.
+                // So the join waker gets registered on the task before it
+                // completes.
+                if let Poll::Ready(out) = self.poll_main_task(handle, task_id) {
+                    return Ok(out);
+                };
+                executor.poll(task_id);
+                self.poll_reactor().await.unwrap();
+            }
+        })
+    }
+
+    pub fn poll_main_task<T>(&self, handle: &mut JoinHandle<T>, task_id: TaskId) -> Poll<T> {
+        task_id.set(Some(0));
+        let handel_waker = main_waker();
+        let handle_cx = &mut Context::from_waker(&handel_waker);
+        let handle = Pin::new(&mut *handle);
+
+        if self.executor.main_handle.get() {
+            self.executor.main_handle.set(false);
+            task_id.set(None);
+            return handle.poll(handle_cx);
+        }
+        task_id.set(None);
+        Poll::Pending
+    }
+
+    #[rustfmt::skip]
+    pub fn poll_reactor_blocking(&self) -> io::Result<()>{
+        let Self {executor, reactor, ..} = self;
+        if executor.is_idle() && !executor.main_handle.get() {
+            reactor.submit_and_wait()?;
+        } else {
+            reactor.submit_and_yield()?;
+        }
+        Ok(())
+    }
+    #[cfg(tokio)]
+    pub async fn poll_reactor(&self) -> io::Result<()> {
+        let Self {
+            executor, reactor, ..
+        } = self;
+        if executor.is_idle() && !executor.main_handle.get() {
+            reactor.submit().await?;
+        } else {
+            reactor.submit_and_yield()?;
+        }
+        Ok(())
+    }
+
+    // pub async fn poll_main_task(&self) -> io::Result<()> {
+    //      let handle = Pin::new(&mut *handle);
+    //             if executor.main_handle.get() {
+    //                 executor.main_handle.set(false);
+    //                 if let Poll::Ready(out) = handle.poll(handle_cx) {
+    //                     return Ok(out);
+    //                 }
+    //             }
+    // }
+
     /// Enters the runtime context. While the guard is in scope
     /// calls to runtime dependent functions and futures such as
     /// spawn will resolve to the provided runtime.
@@ -225,10 +283,11 @@ impl Runtime {
         Enter(rt, &())
     }
 
+    #[cfg(tokio)]
     async fn run_in_tokio(self) -> io::Result<()> {
         loop {
             TASK_ID.with(|task_id| self.executor.poll(task_id));
-            self.reactor.submit().await;
+            self.reactor.submit().await?;
         }
     }
 
@@ -303,13 +362,11 @@ pub fn block_on<F: Future>(f: F) -> io::Result<F::Output> {
 #[inline]
 pub(crate) fn current_unwrap(fun: &str) -> Runtime {
     let Some(rt) = current() else {
-        #[cfg(feature = "tokio_compat")]
-        {
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let rt = Config::default().build().unwrap();
-                tokio::task::spawn_local(rt.clone().run_in_tokio());
-                return rt;
-            }
+        #[cfg(tokio)]
+        if tokio::runtime::Handle::try_current().is_ok() {
+            let rt = Config::default().build().unwrap();
+            tokio::task::spawn_local(rt.clone().run_in_tokio());
+            return rt;
         }
 
         panic!("called `{fun}` from the outside of a runtime context.")

@@ -16,7 +16,7 @@ pub(crate) use poll::{op, Driver, Event};
 #[cfg(kqueue)]
 pub(crate) use kqueue::{op, Driver, Event};
 
-#[cfg(feature = "tokio_compat")]
+#[cfg(tokio)]
 pub use tokio::io::unix::AsyncFd;
 
 use crate::runtime::Config;
@@ -42,7 +42,7 @@ mod utils;
 #[derive(Clone)]
 pub(crate) struct Reactor {
     driver: Rc<RefCell<Driver>>,
-    #[cfg(feature = "tokio_compat")]
+    #[cfg(tokio)]
     async_fd: Rc<AsyncFd<i32>>,
 }
 impl Reactor {
@@ -51,15 +51,22 @@ impl Reactor {
         let driver = Driver::new(config)?;
         let driver = RefCell::new(driver);
         let driver = Rc::new(driver);
+        #[cfg(tokio)]
+        let async_fd = Self::create_async_fd(&driver)?;
+
         Ok(Self {
-            #[cfg(feature = "tokio_compat")]
-            async_fd: {
-                let fd = driver.borrow();
-                Rc::new(AsyncFd::new(fd.fd())?)
-            },
+            #[cfg(tokio)]
+            async_fd,
             driver,
         })
     }
+    #[cfg(tokio)]
+    fn create_async_fd(driver: &Rc<RefCell<Driver>>) -> io::Result<Rc<AsyncFd<i32>>> {
+        let fd = driver.borrow().fd();
+        let fd = AsyncFd::new(fd)?;
+        Ok(Rc::new(fd))
+    }
+
     /// submits all io-events to the kernel and waits for at least one completion event.
     pub fn submit_and_wait(&self) -> io::Result<()> {
         let mut driver = self.driver();
@@ -73,11 +80,11 @@ impl Reactor {
         Ok(())
     }
 
-    #[cfg(feature = "tokio_compat")]
+    #[cfg(tokio)]
     pub async fn submit(&self) -> io::Result<()> {
-        let mut driver = self.driver();
-        driver.submit_and_yield()?;
-        self.async_fd.readable().await;
+        self.submit_and_yield()?;
+        self.async_fd.readable().await?.clear_ready();
+        self.submit_and_yield()?;
         Ok(())
     }
 
@@ -92,7 +99,7 @@ impl Reactor {
     #[cfg(io_uring)]
     #[inline]
     pub fn poll(&self, id: u64, cx: &mut Context) -> Poll<cqueue::Entry> {
-        self.0.borrow_mut().poll(id, cx.waker())
+        self.driver().poll(id, cx.waker())
     }
 
     /// Attempts to push an entry into the queue.
@@ -105,7 +112,7 @@ impl Reactor {
     #[cfg(io_uring)]
     pub unsafe fn push(&self, entry: Entry) -> std::io::Result<u64> {
         // Safety: Invariants must be upheld by the caller.
-        unsafe { self.0.borrow_mut().push(entry) }
+        unsafe { self.driver().push(entry) }
     }
 }
 fn current() -> Reactor {

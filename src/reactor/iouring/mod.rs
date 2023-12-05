@@ -132,4 +132,8 @@ impl Driver {
         }
         Ok(id)
     }
+
+    pub fn fd(&self) -> i32 {
+        self.io_uring.as_raw_fd()
+    }
 }
