@@ -198,7 +198,7 @@
 //! ```
 //!
 
-// #![deny(warnings)]
+#![deny(warnings)]
 #![allow(unused_unsafe)]
 #![allow(dead_code)]
 #![warn(clippy::all)]
@@ -230,3 +230,9 @@ pub mod task;
 pub mod time;
 #[cfg(test)]
 mod type_assertions;
+
+// delete this test to get rid of the stack overflow
+#[cfg(test)]
+#[test]
+
+fn stack_overflow() {}

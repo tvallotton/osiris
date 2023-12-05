@@ -71,7 +71,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 #[cfg(tokio)]
-use tokio::{runtime::Builder, task::LocalSet};
+use tokio::task::LocalSet;
 
 pub use config::{Config, Mode};
 pub(crate) use globals::{RUNTIME, TASK_ID, THREAD_POOL};

@@ -1,5 +1,5 @@
 #![allow(non_camel_case_types)]
-
+#[allow(unused_imports)]
 pub use stat::{statx, statx_timestamp, STATX_BASIC_STATS};
 
 pub(crate) mod buf;
