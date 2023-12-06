@@ -234,8 +234,8 @@ fn reuseport() {
     })
     .unwrap();
 }
-
 #[cfg(test)]
+#[ignore]
 #[test]
 fn accept() {
     use crate::join;

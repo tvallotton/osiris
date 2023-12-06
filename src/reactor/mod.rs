@@ -62,8 +62,10 @@ impl Reactor {
     }
     #[cfg(tokio)]
     fn create_async_fd(driver: &Rc<RefCell<Driver>>) -> io::Result<Rc<AsyncFd<i32>>> {
+        use tokio::io::Interest;
+
         let fd = driver.borrow().fd();
-        let fd = AsyncFd::new(fd)?;
+        let fd = AsyncFd::with_interest(fd, Interest::READABLE).unwrap();
         Ok(Rc::new(fd))
     }
 

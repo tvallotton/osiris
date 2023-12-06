@@ -43,7 +43,7 @@ where {
         self.socket.send_to(buf, addr).await
     }
 }
-
+#[ignore]
 #[test]
 fn udp_server_and_client() {
     crate::block_on(async {

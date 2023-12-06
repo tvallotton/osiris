@@ -7,8 +7,9 @@ use std::time::Duration;
 fn timer_smoke_test() {
     block_on(async {
         let time = std::time::Instant::now();
-        sleep(Duration::from_millis(1620)).await;
-        println!("{:?}", time.elapsed())
+        sleep(Duration::from_millis(1234)).await;
+        assert!(time.elapsed().as_millis() >= 1234, "{:?}", time.elapsed());
+        dbg!(time.elapsed());
     })
     .unwrap();
 }
